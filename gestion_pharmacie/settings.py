@@ -9,18 +9,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-#logging.basicConfig(level=logging.DEBUG) 
+logging.basicConfig(level=logging.DEBUG) 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#z+!08_7q)g9zgor&1vk+@l8x)$5fp&4-!a#r^+p@)k3khf#-m'
-#SECRET_KEY = os.environ.get("SECRET_KEY")
+#SECRET_KEY = 'django-insecure-#z+!08_7q)g9zgor&1vk+@l8x)$5fp&4-!a#r^+p@)k3khf#-m'
+SECRET_KEY = os.environ.get("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+#DEBUG = True
 
-#ALLOWED_HOSTS = ["nicapharm2.onrender.com"]
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["pharmacie-gfv4.onrender.com"]
+#ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
 
-# Application definition
+#Application definition
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -118,19 +118,19 @@ from decouple import config
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('POSTGRES_DB'),
-        'USER': config('POSTGRES_USER'),
-        'PASSWORD': config('POSTGRES_PASSWORD'),
-        'HOST': config('POSTGRES_HOST', default='localhost'),
-        'PORT': config('POSTGRES_PORT', default='5432'),
+        'NAME': 'pharma2_lokm',
+        'USER': 'pharma2_lokm_user',
+        'PASSWORD': 'ixVN7dFZ8ZMTCc3mBLcvdscCTy3HqddK',
+        'HOST': 'dpg-d34iqk3uibrs73air26g-a',
+        'PORT': '5432',
     },
       'remote': 
     {
     'ENGINE': 'django.db.backends.postgresql',
-    'NAME': 'nicapharm21',
-    'USER': 'nicapharm21_user',
-    'PASSWORD': '9omhRKIcWnzOa6iuUy2hCQqvrYQO0q7T',
-    'HOST': 'dpg-d2fucl7diees73cs10bg-a.oregon-postgres.render.com',
+    'NAME': 'pharma2_lokm',
+    'USER': 'pharma2_lokm_user',
+    'PASSWORD': 'ixVN7dFZ8ZMTCc3mBLcvdscCTy3HqddK',
+    'HOST': 'dpg-d34iqk3uibrs73air26g-a.oregon-postgres.render.com',
     'PORT': '5432',
 }
 }
