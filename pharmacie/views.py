@@ -1361,3 +1361,152 @@ class DepenseViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(cree_par=self.request.user)
+
+
+
+
+######################## affiches les recomandations des achats en fonctions des ventes#######
+# pharmacie/views_api.py
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Max, Min
+from decimal import Decimal
+
+from pharmacie.models import Pharmacie, ProduitPharmacie
+from .models import CommandeProduitLigne, VenteLigne
+from .utils import seasonal_analysis
+
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+from django.utils import timezone
+from django.db.models import Max, Min
+from pharmacie.models import (
+    Pharmacie,
+    ProduitPharmacie,
+    ProduitFabricant,
+    CommandeProduitLigne,
+    VenteLigne,
+)
+from .utils import seasonal_analysis
+
+
+from django.db.models import Sum, Max, Min
+from django.utils import timezone
+from rest_framework.decorators import api_view
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse
+from pharmacie.models import Pharmacie, ProduitPharmacie, ProduitFabricant, CommandeProduitLigne, VenteLigne
+from .utils import seasonal_analysis
+
+@api_view(["GET"])
+def analyse_stock_api(request, pharmacie_id):
+    """
+    API : /api/analyse-stock/<pharmacie_id>/?days=30
+    Analyse la rotation des produits :
+      - Basée sur les commandes et les ventes
+      - Montre les produits inactifs
+      - Calcule la catégorie ABC selon le volume de ventes
+    """
+    pharmacie = get_object_or_404(Pharmacie, pk=pharmacie_id)
+
+    try:
+        days = int(request.GET.get('days', 30))
+    except ValueError:
+        days = 30
+
+    today = timezone.now().date()
+    produits_data = []
+
+    # Tous les produits de cette pharmacie
+    produits = ProduitPharmacie.objects.filter(pharmacie=pharmacie)
+
+    ventes_totales = []
+    total_global_ventes = 0
+
+    # 🔹 Étape 1 : Récupérer données de base et volume de ventes
+    for prod in produits:
+        fabricants_ids = ProduitFabricant.objects.filter(
+            produitpharmacie=prod
+        ).values_list('id', flat=True)
+
+        # Dernière commande
+        last_cmd = CommandeProduitLigne.objects.filter(
+            produit_fabricant_id__in=fabricants_ids
+        ).aggregate(
+            last_date=Max('commande__date_commande'),
+            first_date=Min('commande__date_commande')
+        )
+
+        last_cmd_date = last_cmd['last_date']
+        first_cmd_date = last_cmd['first_date']
+
+        # Dernière vente + volume total vendu
+        ventes = VenteLigne.objects.filter(
+            vente__pharmacie=pharmacie,
+            produit=prod
+        )
+        last_sale = ventes.aggregate(last_date=Max('vente__date_vente'))
+        last_sale_date = last_sale['last_date']
+
+        # ✅ Correction ici : champ réel = quantite_vendue
+        total_ventes = ventes.aggregate(total=Sum('quantite'))['total'] or 0
+        ventes_totales.append((prod, total_ventes))
+        total_global_ventes += total_ventes
+
+        # Calcul des jours
+        days_since_last_sale = (today - last_sale_date.date()).days if last_sale_date else None
+        time_in_pharm_days = (today - first_cmd_date.date()).days if first_cmd_date else None
+
+        # Statut du produit
+        if last_sale_date is None:
+            statut = "❌ Jamais vendu"
+        elif days_since_last_sale > 90:
+            statut = "🧊 Produit mort (3 mois+)"
+        elif days_since_last_sale > 30:
+            statut = "⚠️ Vente lente"
+        else:
+            statut = "✅ Produit en mouvement"
+
+        produits_data.append({
+            'produit_id': prod.id,
+            'nom': str(prod),
+            'stock_disponible': getattr(prod, 'quantite', None),
+            'derniere_commande': str(last_cmd_date.date()) if last_cmd_date else None,
+            'derniere_vente': str(last_sale_date.date()) if last_sale_date else None,
+            'jours_depuis_derniere_vente': days_since_last_sale,
+            'temps_total_en_officine': time_in_pharm_days,
+            'statut': statut,
+            'total_ventes': total_ventes,
+        })
+
+    # 🔹 Étape 2 : Classification ABC (par % cumulé des ventes)
+    produits_data = sorted(produits_data, key=lambda x: x['total_ventes'], reverse=True)
+
+    cumul = 0
+    for p in produits_data:
+        part = (p['total_ventes'] / total_global_ventes * 100) if total_global_ventes > 0 else 0
+        cumul += part
+        if cumul <= 70:
+            categorie = "A"
+        elif cumul <= 90:
+            categorie = "B"
+        else:
+            categorie = "C"
+        p['categorie'] = categorie
+        p['pourcentage'] = round(part, 2)
+
+    # 🔹 Étape 3 : Analyse saisonnière
+    seasonal = seasonal_analysis(pharmacie, months_back=12, by_value=False)
+
+    data = {
+        'pharmacie': getattr(pharmacie, 'nom_pharm', None) or getattr(pharmacie, 'nom', None) or str(pharmacie),
+        'period_days': days,
+        'produits': produits_data,
+        'seasonal_data': seasonal,
+    }
+
+    return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})

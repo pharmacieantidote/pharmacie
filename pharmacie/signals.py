@@ -71,3 +71,39 @@ def update_prices_after_taux_change(sender, instance, **kwargs):
         lot.save()
 
     print("✅ Mise à jour des prix terminée.")
+
+
+# pharmacie/signals.py
+# pharmacie/signals.py
+from decimal import Decimal
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from pharmacie.models import ProduitPharmacie, Requisition
+
+@receiver(post_save, sender=ProduitPharmacie)
+def verifier_stock_et_creer_requisition(sender, instance, **kwargs):
+    """
+    ✅ Crée automatiquement une réquisition quand le stock est sous alerte
+    """
+    try:
+        # Vérifie la condition d’alerte
+        if instance.quantite <= instance.alerte_quantite:
+            requisition, created = Requisition.objects.get_or_create(
+                produit_fabricant=instance.produit_fabricant,
+                pharmacie=instance.pharmacie,
+                defaults={
+                    "nom_personnalise": instance.nom_medicament,
+                    "nombre_demandes": 1,
+                    "auto_genere": True,  # 🔰 Distinction visuelle (ex: point vert dans React)
+                },
+            )
+
+            # Si déjà existante, incrémenter le nombre de demandes
+            if not created:
+                requisition.nombre_demandes += 1
+                requisition.save()
+
+            print(f"✅ Réquisition automatique créée pour {instance.nom_medicament}")
+
+    except Exception as e:
+        print(f"⚠️ Erreur lors de la création de la réquisition automatique : {e}")

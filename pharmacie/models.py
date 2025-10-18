@@ -119,7 +119,7 @@ class ProduitPharmacie(models.Model):
 
 
     def __str__(self):
-        return f"{self.nom_medicament} - {self.pharmacie.nom}"
+        return f"{self.nom_medicament} - {self.pharmacie.nom_pharm}"
 
 from decimal import Decimal
 import string
@@ -354,17 +354,43 @@ class Prescription(models.Model):
     duree_traitement = models.CharField(max_length=50)
     updated_at = models.DateTimeField(auto_now=True)
 
+# pharmacie/models.py
+import uuid
+from django.db import models
+from pharmacie.models import Pharmacie          # ✅ Vérifie que le modèle est bien là
+
 class Requisition(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    produit_fabricant = models.ForeignKey(ProduitFabricant, on_delete=models.SET_NULL, null=True, blank=True)
+    produit_fabricant = models.ForeignKey(
+        ProduitFabricant,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisitions'
+    )
     nom_personnalise = models.CharField(max_length=100, blank=True)
     nombre_demandes = models.PositiveIntegerField(default=1)
-    pharmacie = models.ForeignKey(Pharmacie, on_delete=models.CASCADE)
+    pharmacie = models.ForeignKey(
+        Pharmacie,
+        on_delete=models.CASCADE,
+        related_name='requisitions'
+    )
+    auto_genere = models.BooleanField(default=False, help_text="Créée automatiquement par le système")
     date_ajout = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['-date_ajout']
+        verbose_name = "Réquisition"
+        verbose_name_plural = "Réquisitions"
+
     def __str__(self):
-        return self.nom_personnalise or str(self.produit_fabricant)
+        """Affichage lisible dans l’admin Django"""
+        nom = self.nom_personnalise or (
+            self.produit_fabricant.nom if self.produit_fabricant else "Produit inconnu"
+        )
+        return f"{nom} ({self.pharmacie.nom_phar})"
+
 
 from django.db import models
 from django.utils import timezone

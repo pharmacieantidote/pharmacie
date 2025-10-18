@@ -46,7 +46,8 @@ CreateDepotPharmaceutiqueView,
 LogoutAPIView,
 LotsProduitPharmacieViewSet,
 stock_total,
-DepenseViewSet
+DepenseViewSet,
+analyse_stock_api
 
 
 
@@ -112,7 +113,6 @@ urlpatterns = [
     path('api/clients/<uuid:pk>/examen/', CreateMedicalExamView.as_view(), name='create-exam'),
     path('api/clients/<uuid:pk>/ordonnance/', CreatePrescriptionView.as_view(), name='create-prescription'),
     path('api/clients/<uuid:pk>/dossier-medical/', DossierMedicalClientView.as_view(), name='dossier-medical'),
-    
-   
+    path('api/rapport-stock/<uuid:pharmacie_id>/', analyse_stock_api, name='analyse_stock_api'),
     
 ]

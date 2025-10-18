@@ -358,9 +358,9 @@ class ReceptionProduitSerializer(serializers.ModelSerializer):
                         'conditionnement': 'boîte',
                         'date_peremption': date.today() + timedelta(days=545),
                         'categorie': 'True',
-                        'alerte_quantite': 8,
+                        'alerte_quantite': 3,
                         'prix_achat': commande_ligne.prix_achat,
-                        'marge_beneficiaire': Decimal('12.00'),
+                        'marge_beneficiaire': Decimal('20.00'),
                     }
                 )
 

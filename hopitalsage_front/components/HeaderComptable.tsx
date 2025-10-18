@@ -200,6 +200,7 @@ const HeaderPharmacie = ({ pharmacie, user }: HeaderPharmacieProps) => {
         { href: '/dashboard/directeur/rapport', label: 'Rapport global', icon: '🔍' },
         { href: '/dashboard/directeur/requisition', label: 'Requisition', icon: '🔄' },
         { href: '/dashboard/pharmacie/alertstock', label: 'Alertes rupture', icon: '🚨' },
+        { href: '/dashboard/directeur/recomandation', label: 'Recomandation achat', icon: '🔄' },
         { href: '/dashboard/pharmacie/depense', label: 'Gestion de Depense', icon: '📅' },
       ],
       isTitle: true,

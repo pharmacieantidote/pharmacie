@@ -26,7 +26,9 @@ interface Requisition {
   nombre_demandes: number;
   nom_produit?: string;
   fabricant_nom?: string;
+  auto_genere?: boolean; // ✅ ajouté
 }
+
 
 interface User {
   id: number;
@@ -239,10 +241,14 @@ export default function RequisitionPage() {
                       className="flex items-center justify-between bg-white shadow p-4 rounded border mb-3 hover:bg-gray-50"
                     >
                       <div>
-                        <p className="font-semibold text-lg">
+                        <p className="font-semibold text-lg flex items-center gap-2">
                           {r.nom_produit || r.nom_personnalise}
                           {r.fabricant_nom ? ` (${r.fabricant_nom})` : ''}
+                          {r.auto_genere && (
+                            <span className="inline-block w-3 h-3 rounded-full bg-green-500" title="Réquisition automatique"></span>
+                          )}
                         </p>
+
                         <p className="text-gray-500">Demandes : {r.nombre_demandes}</p>
                       </div>
                       <div className="flex gap-3">

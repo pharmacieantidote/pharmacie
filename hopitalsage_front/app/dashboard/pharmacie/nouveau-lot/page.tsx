@@ -1,166 +1,139 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import ListeLots from '@/components/ListeLots'
 import PharmacieLayout from '@/app/dashboard/directeur/layout'
-import Image from 'next/image'
 
 interface ProduitPharmacie {
-  id: string
+  id: number
   nom_medicament: string
-  date_peremption: string   // ✅ la date vient du produit désormais
 }
 
-interface Lot {
-  id: string
-  numero_lot: string
-  quantite: number
-  pharmacie_id: string
-  produit_pharmacie: ProduitPharmacie   // ✅ relation ajoutée
-}
-
-export default function PageLotsExpire() {
-  const [lots, setLots] = useState<Lot[]>([])
-  const [periode, setPeriode] = useState<'expired' | 'week' | 'month' | 'two_months'>('week')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export default function PageLotsProduits() {
+  const [produits, setProduits] = useState<ProduitPharmacie[]>([])
+  const [produitId, setProduitId] = useState<number | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isOpen, setIsOpen] = useState(false) // Pour contrôler l'affichage du menu
+  const [dateDebut, setDateDebut] = useState('')
+  const [dateFin, setDateFin] = useState('')
 
   useEffect(() => {
-    const fetchLots = async () => {
-      try {
-        const token = localStorage.getItem('accessToken')
-        if (!token) throw new Error("Token introuvable.")
+    const token = localStorage.getItem('accessToken')
 
-        const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/user/me/`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        if (!userRes.ok) throw new Error("Échec lors de la récupération de l'utilisateur.")
-        const user = await userRes.json()
-        const pharmacieId = user.pharmacie
-
-        const periodMap = {
-          expired: 'expired',
-          week: 'week',
-          month: 'month',
-          two_months: 'two_months'
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/produits-pharmacie/`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setProduits(data)
+        } else if (data && Array.isArray(data.results)) {
+          setProduits(data.results)
+        } else {
+          console.warn("Format inattendu :", data)
+          setProduits([])
         }
-        const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/lotss/expires/?period=${periodMap[periode]}`
+      })
+      .catch(err => console.error(err))
+  }, [])
 
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        if (!res.ok) throw new Error(`Échec lors de la récupération des lots. Code: ${res.status}`)
-
-        const data = await res.json()
-        // ✅ filtrage pharmacie
-        const filtered = data.filter((lot: Lot) => lot.pharmacie_id === pharmacieId.id)
-
-        setLots(filtered)
-        setError(null)
-      } catch (err: any) {
-        setError(err.message || "Erreur inconnue")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchLots()
-  }, [periode])
-
-  const getUrgencyColor = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diff = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (diff < 0) return 'border-red-600 bg-red-50'
-    if (diff <= 7) return 'border-red-500'
-    if (diff <= 30) return 'border-orange-400'
-    return 'border-yellow-300'
+  const handleReset = () => {
+    setProduitId(null)
+    setSearchTerm('')
+    setDateDebut('')
+    setDateFin('')
   }
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString('fr-FR')
+  // Filtrer les produits selon le terme de recherche
+  const filteredProduits = produits.filter(produit =>
+    produit.nom_medicament.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   return (
     <PharmacieLayout>
       <div className="p-6">
-        <h1 className="text-3xl font-extrabold text-red-700 mb-6 flex items-center gap-3">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="animate-pulse h-8 w-8 text-red-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M12 9v2m0 4h.01M4.93 4.93l14.14 14.14M12 12c4.418 0 8 3.582 8 8s-3.582 8-8 8-8-3.582-8-8 3.582-8 8-8z" />
-          </svg>
-          Produits proches de péremption
-        </h1>
+        <h1 className="text-2xl font-bold mb-4">📦 Liste des lots de médicaments</h1>
 
-        {/* Boutons de filtrage */}
-        <div className="flex gap-4 mb-8 flex-wrap">
-          <button onClick={() => setPeriode('expired')}
-            className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded shadow">
-            Périmés
-          </button>
-          <button onClick={() => setPeriode('week')}
-            className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold px-4 py-2 rounded shadow">
-            Dans 7 jours
-          </button>
-          <button onClick={() => setPeriode('month')}
-            className="bg-orange-400 hover:bg-orange-500 text-black font-semibold px-4 py-2 rounded shadow">
-            Dans 30 jours
-          </button>
-          <button onClick={() => setPeriode('two_months')}
-            className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded shadow">
-            Dans 60 jours
-          </button>
+        <div className="mb-4 relative">
+          <label htmlFor="searchProduit" className="block font-semibold mb-2">
+            Recherchez un produit
+          </label>
+          <input
+            id="searchProduit"
+            type="text"
+            placeholder="Tapez le nom du médicament..."
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value)
+              setIsOpen(true)
+            }}
+            onFocus={() => setIsOpen(true)}
+            onBlur={() => setTimeout(() => setIsOpen(false), 200)} // Fermer avec délai
+            className="border border-gray-300 rounded p-2 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
+
+          {/* Suggestions */}
+          {isOpen && searchTerm && filteredProduits.length > 0 && (
+            <ul className="absolute border border-gray-300 rounded mt-1 bg-white max-h-48 overflow-y-auto z-20 shadow-md w-full">
+              {filteredProduits.map((produit) => (
+                <li
+                  key={produit.id}
+                  onClick={() => {
+                    setProduitId(produit.id)
+                    setSearchTerm(produit.nom_medicament)
+                    setIsOpen(false)
+                  }}
+                  className="px-4 py-2 hover:bg-blue-100 cursor-pointer transition-all"
+                >
+                  {produit.nom_medicament}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
-        {/* Erreur */}
-        {error && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
-            <p>{error}</p>
-          </div>
-        )}
-
-        {/* Chargement */}
-        {loading ? (
-          <p className="text-gray-500">Chargement...</p>
-        ) : lots.length === 0 ? (
-          <div className="text-gray-600 text-center mt-16">
-            <Image
-              src="/warning.png"
-              alt="Aucun produit"
-              width={120}
-              height={120}
-              className="mx-auto mb-4 opacity-60"
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex flex-col">
+            <label htmlFor="dateDebut" className="font-medium mb-1">Date début</label>
+            <input
+              type="date"
+              id="dateDebut"
+              value={dateDebut}
+              onChange={(e) => setDateDebut(e.target.value)}
+              className="border border-gray-300 rounded p-2"
             />
-            <p className="text-lg">Aucun médicament trouvé.</p>
           </div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {lots.map((lot) => (
-              <div
-                key={lot.id}
-                className={`border-4 ${getUrgencyColor(lot.produit_pharmacie.date_peremption)} rounded-xl p-4 shadow-lg bg-white hover:scale-[1.01] transition duration-200`}
-              >
-                <h2 className="text-lg font-bold text-gray-800 mb-2">
-                  {lot.produit_pharmacie.nom_medicament}
-                </h2>
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-semibold">Lot :</span> {lot.numero_lot}
-                </p>
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-semibold">Quantité :</span> {lot.quantite}
-                </p>
-                <p className="text-sm font-semibold text-red-700">
-                  <span className="mr-1">🕒 Péremption :</span>
-                  {formatDate(lot.produit_pharmacie.date_peremption)}
-                </p>
-              </div>
-            ))}
+
+          <div className="flex flex-col">
+            <label htmlFor="dateFin" className="font-medium mb-1">Date fin</label>
+            <input
+              type="date"
+              id="dateFin"
+              value={dateFin}
+              onChange={(e) => setDateFin(e.target.value)}
+              className="border border-gray-300 rounded p-2"
+            />
           </div>
+
+          <div className="flex items-end">
+            <button
+              onClick={handleReset}
+              className="bg-gray-500 text-white px-4 py-2 rounded h-[40px] mt-5 hover:bg-gray-600 transition-colors"
+            >
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+
+        {produitId && (
+          <ListeLots
+            produitId={produitId}
+            dateDebut={dateDebut}
+            dateFin={dateFin}
+          />
         )}
       </div>
     </PharmacieLayout>
