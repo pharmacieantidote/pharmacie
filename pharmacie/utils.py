@@ -410,3 +410,96 @@ def last_sale_info(pharmacie, produit_obj):
 
     days_since = (timezone.now().date() - last_sale.date()).days
     return {'last_sale_date': last_sale.date(), 'days_since_last_sale': days_since}
+
+
+
+
+#################### IMPRESSION#######################################
+from escpos.printer import Usb
+from datetime import datetime
+import traceback
+
+def imprimer_ticket_vente(vente, lignes):
+    print(">>> Impression du ticket appelée pour la vente", vente.id)
+    try:
+        # 🔌 Connexion à l’imprimante USB
+        printer = Usb(0x1fc9, 0x2016)
+
+        pharmacie = vente.pharmacie
+        client = vente.client
+
+        # === 🏪 EN-TÊTE PHARMACIE ===
+        printer.set(align='center', bold=True)
+        printer.text(f"{pharmacie.nom_pharm}\n")
+        
+        printer.set(bold=False)
+        printer.text(f"{pharmacie.adresse_pharm}\n")
+        printer.text(f"Tel: {pharmacie.telephone}\n")
+        
+        # 🔥 Mentions légales fixes
+        printer.text("RCCM: KINM/RCCM/24-A-04269\n")
+        printer.text("IDNAT: 01-g4701-N68946B\n")
+        printer.text("NI: A2436650P\n")
+        printer.text("-" * 32 + "\n")
+
+        # === 📅 INFOS VENTE ===
+        printer.set(align='left')
+        date_vente = vente.date_vente.strftime('%d/%m/%Y %H:%M')
+        printer.text(f"Date: {date_vente}\n")
+        
+        if client:
+            printer.text(f"Client: {client.nom_complet}\n")
+            if client.telephone:
+                printer.text(f"Tel: {client.telephone}\n")
+        printer.text("-" * 32 + "\n")
+
+        # === 🧾 LIGNES DE VENTE ===
+        total = 0
+        for l in lignes:
+            produit = l.produit.nom_medicament
+            qte = l.quantite
+            pu = float(l.prix_unitaire)
+            sous_total = qte * pu
+            total += sous_total
+
+            # Nom du produit (tronqué à 22 caractères pour tenir sur 80mm)
+            nom_affiche = (produit[:22] + '..') if len(produit) > 22 else produit
+            printer.text(f"{nom_affiche:<22} {qte} x {pu:.2f}\n")
+            printer.text(f"{'':<22}   = {sous_total:.2f}\n")
+
+        printer.text("-" * 32 + "\n")
+
+        # === 💰 TOTAL ===
+        printer.set(align='right', bold=True)
+        printer.text(f"TOTAL : {total:.2f} Fc\n")
+        printer.set(bold=False)
+        
+        # Conversion USD (taux fixe)
+        taux_dollar = 2900
+        total_usd = total / taux_dollar
+        printer.text(f"Soit : ${total_usd:.2f} USD\n")
+        printer.text("-" * 32 + "\n")
+
+        # === 📝 MENTIONS LÉGALES ===
+        printer.set(align='center')
+        printer.text("Les produits vendus ne sont\n")
+        printer.text("ni repris, ni échangés.\n\n")
+        printer.text("Adresse: Lunguvu n°6,\n")
+        printer.text("quartier Foire, commune de Lemba\n")
+        printer.text("Pharmacien Grâce MUSANFUR\n\n")
+
+        # === 🙏 MESSAGE DE FIN ===
+        printer.set(bold=True)
+        printer.text("Merci pour votre paiement !\n")
+        printer.set(bold=False)
+        printer.text("A bientôt !\n\n\n")
+
+        # ✂️ Couper le papier
+        printer.cut()
+        printer.close()
+
+        print(">>> Ticket imprimé avec succès ✅")
+
+    except Exception as e:
+        print(f"⚠️ Erreur impression ticket: {e}")
+        traceback.print_exc()

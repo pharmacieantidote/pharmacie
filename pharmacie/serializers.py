@@ -483,6 +483,9 @@ class CurrentPharmacieDefault:
         user = serializer_field.context['request'].user
         return user.pharmacie  # ou autre relation selon ton modèle
 
+# 🔽 Import de la fonction d’impression thermique
+from .utils import imprimer_ticket_vente
+
 
 class VenteProduitSerializer(serializers.ModelSerializer):
     pharmacie = serializers.HiddenField(default=CurrentPharmacieDefault())
@@ -541,17 +544,14 @@ class VenteProduitSerializer(serializers.ModelSerializer):
         return data
 
     @transaction.atomic
-
     def create(self, validated_data):
         lignes_data = validated_data.pop('lignes')
         client = validated_data.pop('client', None)
 
-        vente = VenteProduit.objects.create(
-            client=client,
-            **validated_data
-        )
+        vente = VenteProduit.objects.create(client=client, **validated_data)
 
         total_vente = 0
+        lignes_instances = []  # Pour conserver les lignes de vente créées
 
         for ligne_data in lignes_data:
             produit = ligne_data['produit']
@@ -560,13 +560,14 @@ class VenteProduitSerializer(serializers.ModelSerializer):
             total_ligne = quantite * prix_unitaire
 
             # Création de la ligne de vente
-            VenteLigne.objects.create(
+            ligne = VenteLigne.objects.create(
                 vente=vente,
                 produit=produit,
                 quantite=quantite,
                 prix_unitaire=prix_unitaire,
                 total=total_ligne
             )
+            lignes_instances.append(ligne)
 
             # ✅ Réduction du stock global
             produit.quantite -= quantite
@@ -591,10 +592,14 @@ class VenteProduitSerializer(serializers.ModelSerializer):
         vente.montant_total = total_vente
         vente.save(update_fields=['montant_total'])
 
+        # ✅ Impression du ticket (placé après la sauvegarde complète)
+        imprimer_ticket_vente(vente, lignes_instances)
+
         if client:
             client.update_stats()
 
         return vente
+
 
 ########################### CLIENT ET TOUT C QUI LUI CONCERNE################################
 from rest_framework import serializers

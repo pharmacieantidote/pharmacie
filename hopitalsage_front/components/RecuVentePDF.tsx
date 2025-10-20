@@ -2,8 +2,6 @@
 
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
-// @ts-ignore (qz n'a pas de types officiels)
-import qz from 'qz-tray';
 
 interface RecuVentePDFProps {
   lignes: any[];
@@ -20,7 +18,7 @@ const generateAndDownloadPDF = async ({
   pharmacie,
   type = 'recu',
 }: RecuVentePDFProps) => {
-  console.log('🚀 Génération du reçu pour QZ Tray');
+  console.log('📄 Génération du PDF (sans impression)');
 
   const margeTop = 5;
   const headerHeight = 40;
@@ -65,15 +63,12 @@ const generateAndDownloadPDF = async ({
   doc.text(`NI: ${NI}`, 5, yPos);
   yPos += 4;
 
-  
- const today = new Date();
-const day = String(today.getDate()).padStart(2, '0');
-const month = String(today.getMonth() + 1).padStart(2, '0');
-const year = today.getFullYear();
-const formattedDate = `${day}/${month}/${year}`;
+  const today = new Date();
+  const day = String(today.getDate()).padStart(2, '0');
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const year = today.getFullYear();
+  const formattedDate = `${day}/${month}/${year}`;
 
-doc.text(`${pharmacie?.telephone || 'N/A'}`, 5, yPos);
-doc.text(`Date: ${formattedDate}`, 75, yPos, { align: 'right' });
   doc.text(`${pharmacie?.telephone || 'N/A'}`, 5, yPos);
   doc.text(`Date: ${formattedDate}`, 75, yPos, { align: 'right' });
   yPos += 4;
@@ -145,7 +140,6 @@ doc.text(`Date: ${formattedDate}`, 75, yPos, { align: 'right' });
   doc.text('Les produits vendus ne sont ni repris, ni échangés', 40, yPos, { align: 'center' });
 
   yPos += 5;
-  doc.setFont('normal');
   doc.text('Adresse: Lunguvu n°6, quartier Foire, commune de Lemba', 40, yPos, { align: 'center' });
   yPos += 5;
   doc.text('Pharmacien Grâce MUSANFUR', 40, yPos, { align: 'center' });
@@ -161,44 +155,8 @@ doc.text(`Date: ${formattedDate}`, 75, yPos, { align: 'right' });
   const qrDataUrl = await QRCode.toDataURL(qrData);
   doc.addImage(qrDataUrl, 'PNG', 30, yPos, 20, 20);
 
-  // ✅ Exporter le PDF en Base64
-  const pdfBase64 = doc.output('datauristring').split(',')[1]; // Enlève "data:application/pdf;base64,"
-
-  // ✅ IMPRESSION AVEC QZ TRAY
-  try {
-    // 🔌 Connexion à QZ Tray
-    if (!qz.websocket.isActive()) {
-      await qz.websocket.connect();
-      console.log('✅ Connecté à QZ Tray');
-    }
-
-    // 🖨️ Configuration de l’imprimante
-    const printerName = await qz.printers.find('80'); // ou le nom exact de ton imprimante
-    if (!printerName) {
-      alert('🖨️ Imprimante non trouvée. Vérifie le nom ou connecte-la.');
-      return;
-    }
-
-    const config = qz.configs.create(printerName, {
-      size: { width: 80, height: 0 }, // 80mm large
-      margins: 0,
-      orientation: 'portrait',
-    });
-
-    // 📄 Envoi du PDF
-    await qz.print(config, [
-      {
-        type: 'raw',
-        format: 'pdf',
-        data: pdfBase64,
-      },
-    ]);
-
-    console.log('🖨️ Impression envoyée à l’imprimante :', printerName);
-  } catch (err: any) {
-    console.error('❌ Erreur QZ Tray:', err);
-    alert('Erreur impression : ' + (err.message || 'Vérifiez QZ Tray et l’imprimante'));
-  }
+  // ✅ Télécharger le PDF (sans impression)
+  doc.save(`${titre.replace(' ', '_')}_${numero}.pdf`);
 };
 
 export default generateAndDownloadPDF;

@@ -55,11 +55,13 @@ export default function VentePage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [pharmacieData, setPharmacieData] = useState<PharmacieData | null>(null);
 
+  // 🔑 Charger le token JWT
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
     setAccessToken(token);
   }, []);
 
+  // 🏥 Charger les infos de la pharmacie liée à l'utilisateur
   useEffect(() => {
     if (accessToken) {
       axios
@@ -81,30 +83,29 @@ export default function VentePage() {
     }
   }, [accessToken]);
 
+  // 💊 Charger les produits
   const loadProduits = (pharmacieId: number) => {
     axios
       .get(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/produits-pharmacie/?pharmacie=${pharmacieId}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       )
       .then((res) => setProduits(res.data))
       .catch(() => setError('Erreur lors du chargement des produits'));
   };
 
+  // 👤 Charger les clients
   const loadClients = (pharmacieId: number) => {
     axios
       .get(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/clients/?pharmacie=${pharmacieId}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       )
       .then((res) => setClients(res.data))
       .catch(console.error);
   };
 
+  // Charger produits + clients quand la pharmacie est connue
   useEffect(() => {
     if (accessToken && pharmacieId) {
       loadProduits(pharmacieId);
@@ -112,9 +113,11 @@ export default function VentePage() {
     }
   }, [accessToken, pharmacieId]);
 
+  // ➕ Ajouter une ligne
   const addLigne = () =>
     setLignes([...lignes, { produit: null, quantite: 1, prix_unitaire: 0, total: 0 }]);
 
+  // ❌ Supprimer une ligne
   const removeLigne = (index: number) => {
     if (lignes.length > 1) {
       const copy = [...lignes];
@@ -123,6 +126,7 @@ export default function VentePage() {
     }
   };
 
+  // 🔄 Choisir un produit dans une ligne
   const updateLigneProduit = (index: number, produitId: number) => {
     const produit = produits.find((p) => p.id === produitId);
     if (!produit) return;
@@ -136,6 +140,7 @@ export default function VentePage() {
     setLignes(copy);
   };
 
+  // 🔢 Modifier la quantité d'une ligne
   const updateLigneQuantite = (index: number, quantite: number) => {
     const ligne = lignes[index];
     if (ligne.produit) {
@@ -146,8 +151,10 @@ export default function VentePage() {
     }
   };
 
+  // 💰 Calcul du total
   const totalVente = lignes.reduce((s, l) => s + l.total, 0);
 
+  // 🧾 Proformat
   const handleProformat = () => {
     if (!selectedClient) {
       alert('Veuillez sélectionner un client pour générer le proformat.');
@@ -182,6 +189,7 @@ export default function VentePage() {
     });
   };
 
+  // 💾 Soumission de la vente (côté API)
   const handleSubmit = async () => {
     if (!accessToken || !pharmacieId) return;
 
@@ -212,7 +220,7 @@ export default function VentePage() {
       });
 
       alert('Vente enregistrée avec succès !');
-
+      // Impression côté serveur via Python ESC/POS (déjà dans ta vue)
       generateAndDownloadPDF({
         lignes,
         selectedClient,
@@ -240,7 +248,6 @@ export default function VentePage() {
   };
 
   if (loading) return <div className="p-6 text-center">Chargement...</div>;
-
   if (error) return <div className="p-6 text-red-500 text-center">{error}</div>;
 
   const filteredProduits = produits.filter((p) =>
@@ -259,7 +266,7 @@ export default function VentePage() {
         <h1 className="text-2xl font-bold">Nouvelle Vente</h1>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {/* COLONNE GAUCHE */}
+          {/* COLONNE GAUCHE — Produits */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Produits</h2>
             <input
@@ -300,7 +307,9 @@ export default function VentePage() {
                     <div className="font-semibold">{produit.nom_medicament}</div>
                     <div className="text-sm text-gray-600">Stock : {produit.quantite}</div>
                     <div className="text-sm text-green-600 font-bold">{produit.prix_vente} Fc</div>
-                    <div className="text-sm text-gray-500 italic">Etagère N° : {produit.localisation}</div>
+                    <div className="text-sm text-gray-500 italic">
+                      Etagère N° : {produit.localisation}
+                    </div>
                   </div>
                 ))}
                 {filteredProduits.length === 0 && (
@@ -310,10 +319,11 @@ export default function VentePage() {
             )}
           </div>
 
-          {/* COLONNE DROITE */}
+          {/* COLONNE DROITE — Panier */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Panier</h2>
 
+            {/* Sélection du client */}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-md font-semibold mb-2">Client</h3>
               <input
@@ -362,6 +372,7 @@ export default function VentePage() {
               )}
             </div>
 
+            {/* Liste des lignes */}
             <div className="space-y-3">
               {lignes.map((ligne, index) => (
                 <div
@@ -404,6 +415,7 @@ export default function VentePage() {
               </button>
             </div>
 
+            {/* TOTAL + Actions */}
             <div className="bg-emerald-50 border-t pt-4 p-4 rounded-lg">
               <div className="flex justify-between items-center mb-4">
                 <div className="text-lg font-bold">
