@@ -118,10 +118,10 @@ from decouple import config
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'pharma3_4szs',
-        'USER': 'pharma3_4szs_user',
-        'PASSWORD': '1yi1Kr9nTZQTFnqTeEdLvmjxE0XrURsW',
-        'HOST': 'dpg-d3r4shc9c44c73d6rjg0-a',
+        'NAME': 'pharma5',
+        'USER': 'pharma5_user',
+        'PASSWORD': 'rEfhDSVG6UqIkyfPZCuJhucaQLOCNCzh',
+        'HOST': 'dpg-d4giirh5pdvs738kdcc0-a',
         'PORT': config('POSTGRES_PORT', default='5432'),
     },
       'remote': 
