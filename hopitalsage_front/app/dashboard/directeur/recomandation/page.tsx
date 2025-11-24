@@ -1,14 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Loader2, Calendar, BarChart3, AlertTriangle, Filter } from "lucide-react";
+import {
+  Loader2,
+  Calendar,
+  BarChart3,
+  AlertTriangle,
+  Filter,
+  Download,
+} from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 export default function RapportStockPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState(30);
-  const [selectedCategory, setSelectedCategory] = useState(""); // ✅ Catégorie sélectionnée
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const rapportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -25,6 +35,24 @@ export default function RapportStockPage() {
         setLoading(false);
       });
   }, [period]);
+
+  // ✅ Fonction pour générer et télécharger le PDF
+  const handleDownloadPDF = async () => {
+    if (!rapportRef.current) return;
+
+    const canvas = await html2canvas(rapportRef.current, {
+      scale: 2,
+      useCORS: true,
+    });
+    const imgData = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = (canvas.height * pageWidth) / canvas.width;
+
+    pdf.addImage(imgData, "PNG", 0, 0, pageWidth, pageHeight);
+    pdf.save(`Rapport_Stock_${selectedCategory || "Tous"}_${period}j.pdf`);
+  };
 
   if (loading)
     return (
@@ -59,7 +87,7 @@ export default function RapportStockPage() {
       transition={{ duration: 0.6 }}
       className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-8"
     >
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto" ref={rapportRef}>
         {/* === En-tête === */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <h1 className="text-3xl font-extrabold text-gray-800">
@@ -83,7 +111,7 @@ export default function RapportStockPage() {
               </select>
             </label>
 
-            {/* ✅ Sélecteur de catégorie */}
+            {/* Sélecteur de catégorie */}
             <label className="flex items-center gap-2 text-gray-700 font-medium">
               <Filter className="w-5 h-5 text-blue-500" />
               Catégorie :
@@ -98,6 +126,15 @@ export default function RapportStockPage() {
                 <option value="C">Catégorie C</option>
               </select>
             </label>
+
+            {/* ✅ Bouton téléchargement PDF */}
+            <button
+              onClick={handleDownloadPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow transition"
+            >
+              <Download className="w-5 h-5" />
+              Télécharger PDF
+            </button>
           </div>
         </div>
 
@@ -105,19 +142,19 @@ export default function RapportStockPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
           <SummaryCard
             icon={<BarChart3 className="text-green-600" />}
-            title="Catégorie A  :  Produits stratégiques / à forte rotation ✅"
+            title="Catégorie A : Produits stratégiques / forte rotation ✅"
             count={produitsA}
             color="bg-green-50"
           />
           <SummaryCard
             icon={<BarChart3 className="text-yellow-600" />}
-            title="Catégorie B   :  Produits intermédiaires ⚠️"
+            title="Catégorie B : Produits intermédiaires ⚠️"
             count={produitsB}
             color="bg-yellow-50"
           />
           <SummaryCard
             icon={<BarChart3 className="text-red-600" />}
-            title="Catégorie C  :  Produits à faible rotation / moins rentables ❌"
+            title="Catégorie C : Faible rotation ❌"
             count={produitsC}
             color="bg-red-50"
           />
@@ -187,7 +224,7 @@ export default function RapportStockPage() {
           </table>
         </motion.div>
 
-        {/* === Analyse saisonnière (si disponible) === */}
+        {/* === Analyse saisonnière === */}
         {data.seasonal_data && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}

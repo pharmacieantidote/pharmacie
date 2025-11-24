@@ -1,161 +1,251 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, TrendingUp, DollarSign, ShoppingCart, Star, PackageCheck } from 'lucide-react';
+import {
+  Loader2,
+  BarChart3,
+  TrendingUp,
+  DollarSign,
+  ArrowUp,
+  ArrowDown,
+  Calendar,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LabelList,
+} from 'recharts';
 
-interface Rapport {
-  periode: string;
-  date_debut: string;
-  date_fin: string;
-  chiffre_affaire: string | number;
-  benefice: string | number;
-  total_ventes: string | number;
-  total_depenses?: string | number;
-  solde?: string | number;
-  produit_plus_vendu: string;
+interface RapportMensuel {
+  id: string;
+  pharmacie_nom: string;
+  annee: number;
+  mois: number;
+  mois_nom: string;
+  total_ventes: number;
+  total_depenses: number;
+  total_benefice: number;
+  croissance_ventes: number;
+  croissance_benefice: number;
+  cree_le: string;
 }
 
-export default function RapportGeneral() {
-  const [periode, setPeriode] = useState('jour');
-  const [rapport, setRapport] = useState<Rapport | null>(null);
+export default function RapportMensuelPage() {
+  const [annee, setAnnee] = useState(new Date().getFullYear());
+  const [rapports, setRapports] = useState<RapportMensuel[]>([]);
   const [loading, setLoading] = useState(false);
-  const [montantStock, setMontantStock] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
 
+  // Charger les rapports
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
     if (!token) {
-      setError('❌ Vous devez être connecté');
+      setError('❌ Vous devez être connecté.');
       return;
     }
 
     setLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/rapport-general/?periode=${periode}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          // essaie de lire l'erreur JSON pour détecter pharmacie manquante
-          try {
-            const dataErr = await res.json();
-            if (dataErr?.pharmacie) {
-              setError("⚠️ Aucun rapport : vous n'avez pas de pharmacie liée à votre compte.");
-            } else if (typeof dataErr === "string") {
-              setError(`Erreur: ${dataErr}`);
-            } else {
-              setError(`Erreur inconnue (status ${res.status})`);
-            }
-          } catch {
-            setError(`Erreur réseau (status ${res.status})`);
-          }
-          setLoading(false);
-          return null;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data) {
-          setRapport(data);
-          setError(null);
-        }
-      })
-      .catch((err) => {
-        console.error('Erreur lors du chargement du rapport:', err);
-        setError('⚠️ Impossible de charger le rapport.');
-      })
-      .finally(() => setLoading(false));
-  }, [periode]);
-
-  // Charger le montant du stock une seule fois
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
-
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/stock-total/`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/rapports/?annee=${annee}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.json())
-      .then((data) => {
-        setMontantStock(data.montant_stock);
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Erreur ${res.status}`);
+        const data = await res.json();
+        setRapports(data);
+        setError(null);
       })
-      .catch((err) => {
-        console.error('Erreur lors du chargement du montant du stock:', err);
-      });
-  }, []);
+      .catch(() => setError('⚠️ Impossible de charger les rapports.'))
+      .finally(() => setLoading(false));
+  }, [annee]);
 
-  const periodLabel = {
-    jour: 'Journalier',
-    semaine: 'Hebdomadaire',
-    mois: 'Mensuel',
+  // Générer un nouveau rapport
+  const handleGenerate = async () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      setError('❌ Vous devez être connecté.');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/rapports/generer/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ annee }),
+      });
+
+      if (!res.ok) throw new Error('Erreur lors de la génération');
+      const data = await res.json();
+
+      // Mise à jour locale
+      setRapports((prev) => {
+        const updated = [...prev, data.rapport];
+        return updated.sort((a, b) => a.mois - b.mois);
+      });
+      setError(null);
+    } catch (err) {
+      setError('⚠️ Échec de la génération du rapport.');
+    } finally {
+      setGenerating(false);
+    }
   };
+
+  // Calcul du total pourcentage par colonne
+  const totalVentes = rapports.reduce((sum, r) => sum + r.total_ventes, 0);
+  const totalDepenses = rapports.reduce((sum, r) => sum + r.total_depenses, 0);
+  const totalBenefices = rapports.reduce((sum, r) => sum + r.total_benefice, 0);
 
   return (
     <div className="p-6 space-y-6">
+      {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-3xl font-bold text-gray-800">📊 Rapport {periodLabel[periode]}</h2>
-        <select
-          value={periode}
-          onChange={(e) => setPeriode(e.target.value)}
-          className="mt-4 sm:mt-0 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-        >
-          <option value="jour">Journalier</option>
-          <option value="semaine">Hebdomadaire</option>
-          <option value="mois">Mensuel</option>
-        </select>
+        <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+          <BarChart3 className="text-green-600" /> Rapports Mensuels
+        </h2>
+
+        <div className="flex items-center gap-3">
+          <select
+            value={annee}
+            onChange={(e) => setAnnee(Number(e.target.value))}
+            className="border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            {[2024, 2025, 2026].map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all"
+          >
+            {generating ? <Loader2 className="animate-spin w-5 h-5" /> : <Calendar className="w-5 h-5" />}
+            Générer rapport
+          </button>
+        </div>
       </div>
 
+      {/* TABLEAU DES DONNÉES */}
       {loading ? (
         <div className="flex justify-center items-center h-40">
           <Loader2 className="w-8 h-8 animate-spin text-green-600" />
         </div>
       ) : error ? (
         <div className="text-red-600 font-semibold">{error}</div>
+      ) : rapports.length === 0 ? (
+        <div className="text-gray-500 text-center italic">Aucun rapport trouvé pour {annee}.</div>
       ) : (
-        rapport && (
+        <>
+          {/* TABLEAU */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+            className="overflow-x-auto"
           >
-            <Card icon={<DollarSign className="text-green-600" />} label="Chiffre d'affaires" value={`${rapport.chiffre_affaire} Fc`} />
-            <Card icon={<TrendingUp className="text-blue-600" />} label="Bénéfice" value={`${rapport.benefice} Fc`} />
-            <Card icon={<ShoppingCart className="text-purple-600" />} label="Total des ventes" value={`${rapport.total_ventes} Fc`} />
-            {rapport.total_depenses !== undefined && (
-              <Card icon={<ShoppingCart className="text-red-600" />} label="Total des dépenses" value={`${rapport.total_depenses} Fc`} />
-            )}
-            {rapport.solde !== undefined && (
-              <Card icon={<TrendingUp className="text-gray-600" />} label="Solde" value={`${rapport.solde} Fc`} />
-            )}
-            <Card icon={<Star className="text-yellow-500" />} label="Produit le plus vendu" value={rapport.produit_plus_vendu} />
-            <Card icon={<CalendarIcon />} label="Période" value={`Du ${rapport.date_debut} au ${rapport.date_fin}`} />
-            {montantStock && <Card icon={<PackageCheck className="text-orange-600" />} label="Valeur du stock" value={`${montantStock} Fc`} />}
+            <table className="w-full border-collapse bg-white rounded-2xl shadow-md overflow-hidden">
+              <thead className="bg-green-100 text-gray-700">
+                <tr>
+                  <th className="py-3 px-4 text-left">Mois</th>
+                  <th className="py-3 px-4 text-left">Ventes (Fc)</th>
+                  <th className="py-3 px-4 text-left">Dépenses (Fc)</th>
+                  <th className="py-3 px-4 text-left">Bénéfice (Fc)</th>
+                  <th className="py-3 px-4 text-left">Croissance ventes</th>
+                  <th className="py-3 px-4 text-left">Croissance bénéfice</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rapports.map((r) => (
+                  <tr key={r.id} className="border-b hover:bg-gray-50 transition-colors duration-200">
+                    <td className="py-3 px-4 font-semibold">{r.mois_nom}</td>
+                    <td className="py-3 px-4">
+                      {Number(r.total_ventes).toLocaleString()} Fc{' '}
+                      <span className="text-gray-400 text-xs">
+                        ({((r.total_ventes / totalVentes) * 100).toFixed(1)}%)
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-red-600">
+                      {Number(r.total_depenses).toLocaleString()} Fc{' '}
+                      <span className="text-gray-400 text-xs">
+                        ({((r.total_depenses / totalDepenses) * 100).toFixed(1)}%)
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-green-600 font-semibold">
+                      {Number(r.total_benefice).toLocaleString()} Fc{' '}
+                      <span className="text-gray-400 text-xs">
+                        ({((r.total_benefice / totalBenefices) * 100).toFixed(1)}%)
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <TrendIndicator value={r.croissance_ventes} />
+                    </td>
+                    <td className="py-3 px-4">
+                      <TrendIndicator value={r.croissance_benefice} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </motion.div>
-        )
+
+          {/* GRAPHIQUES */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mt-10 bg-white p-6 rounded-2xl shadow-lg"
+          >
+            <h3 className="text-2xl font-semibold mb-6 text-gray-700 flex items-center gap-2">
+              <TrendingUp className="text-green-500" /> Analyse Graphique
+            </h3>
+
+            <div className="w-full h-[450px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={rapports} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mois_nom" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="total_ventes" fill="#16a34a" name="Ventes">
+                    <LabelList dataKey="total_ventes" position="top" formatter={(v) => v.toLocaleString()} />
+                  </Bar>
+                  <Bar dataKey="total_depenses" fill="#dc2626" name="Dépenses">
+                    <LabelList dataKey="total_depenses" position="top" formatter={(v) => v.toLocaleString()} />
+                  </Bar>
+                  <Bar dataKey="total_benefice" fill="#0ea5e9" name="Bénéfice">
+                    <LabelList dataKey="total_benefice" position="top" formatter={(v) => v.toLocaleString()} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        </>
       )}
     </div>
   );
 }
 
-function Card({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
+// === Indicateur de tendance ===
+function TrendIndicator({ value }: { value: number }) {
+  const positive = value >= 0;
   return (
-    <div className="bg-white rounded-2xl shadow-md p-6 flex items-start space-x-4 hover:shadow-lg transition-all duration-300">
-      <div className="bg-gray-100 p-3 rounded-full">{icon}</div>
-      <div>
-        <p className="text-gray-600 text-sm">{label}</p>
-        <p className="text-lg font-bold text-gray-800">{value}</p>
-      </div>
+    <div className={`flex items-center gap-1 ${positive ? 'text-green-600' : 'text-red-600'}`}>
+      {positive ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+      <span>{Math.abs(value).toFixed(1)}%</span>
     </div>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3M16 7V3M3 11h18M5 19h14a2 2 0 002-2V7H3v10a2 2 0 002 2z" />
-    </svg>
   );
 }

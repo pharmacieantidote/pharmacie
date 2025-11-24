@@ -415,8 +415,11 @@ def last_sale_info(pharmacie, produit_obj):
 
 
 #################### IMPRESSION#######################################
+#################### IMPRESSION #######################################
+#################### IMPRESSION #######################################
 from escpos.printer import Usb
 from datetime import datetime
+import random
 import traceback
 
 def imprimer_ticket_vente(vente, lignes):
@@ -428,32 +431,85 @@ def imprimer_ticket_vente(vente, lignes):
         pharmacie = vente.pharmacie
         client = vente.client
 
-        # === 🏪 EN-TÊTE PHARMACIE ===
-        printer.set(align='center', bold=True)
+        # =====================================================
+        # 🔹 CONFIGURATION GLOBALE (TAILLE DU TEXTE)
+        # =====================================================
+        # 👉 Pour diminuer toute la taille du ticket :
+        #    width et height peuvent être mis à 0.8 ou 0.7
+        printer.set(width=1, height=1)
+
+        # =====================================================
+        # 🏪 EN-TÊTE PHARMACIE
+        # =====================================================
+        date_vente = vente.date_vente.strftime('%d/%m/%Y %H:%M')
+
+        # Première ligne : Bienvenue à gauche, date à droite
+        printer.set(align='left', bold=False)
+        printer.text(f"Bienvenue chez{'':<10}{date_vente:>20}\n")
+
+        # Nom pharmacie en gras
+        printer.set(bold=True)
         printer.text(f"{pharmacie.nom_pharm}\n")
         
+       # Texte très petit en italique simulé
+# Ultra petit texte (le plus petit possible sur ESC/POS)
+        printer.set(font='b', width=1, height=1)
+        printer.text("\x1B\x21\x01")  # Mode caractères condensés ESC/POS
+        printer.text("(Votre Santé, notre priorité)\n")
+        printer.text("\x1B\x21\x00")  # Retour au mode normal
+
+        # Infos contact
         printer.set(bold=False)
-        printer.text(f"{pharmacie.adresse_pharm}\n")
+        printer.text("Adresse: Av. Lunguvu, N°6, Q/Foir ")
+        printer.text(f"C/: {pharmacie.adresse_pharm}\n")
         printer.text(f"Tel: {pharmacie.telephone}\n")
-        
-        # 🔥 Mentions légales fixes
+        printer.text("Pharmacien Grâce MUSAMFUR\n")
+
+        # Mentions légales fixes
         printer.text("RCCM: KINM/RCCM/24-A-04269\n")
         printer.text("IDNAT: 01-g4701-N68946B\n")
         printer.text("NI: A2436650P\n")
+
+        # Mention légale réduite et centrée
+        printer.set(align='center', width=0.8, height=0.8, bold=False)
+        printer.text("Les produits vendus ne sont\n")
+        printer.text("ni repris, ni échangés.\n")
+        printer.set(width=1, height=1)
         printer.text("-" * 32 + "\n")
 
-        # === 📅 INFOS VENTE ===
-        printer.set(align='left')
-        date_vente = vente.date_vente.strftime('%d/%m/%Y %H:%M')
-        printer.text(f"Date: {date_vente}\n")
-        
+        # =====================================================
+        # 👤 CLIENT
+        # =====================================================
+        printer.set(align='left', bold=False)
         if client:
-            printer.text(f"Client: {client.nom_complet}\n")
+            printer.text(f"Client : {client.nom_complet}\n")
             if client.telephone:
-                printer.text(f"Tel: {client.telephone}\n")
+                printer.text(f"Tél : {client.telephone}\n")
+        else:
+            printer.text("Client\n")
+
         printer.text("-" * 32 + "\n")
 
-        # === 🧾 LIGNES DE VENTE ===
+        # =====================================================
+        # 🧾 FACTURE N° (ALÉATOIRE)
+        # =====================================================
+               # =====================================================
+        # 🧾 FACTURE N° (ALÉATOIRE)
+        # =====================================================
+        numero_facture = random.randint(1000, 9999)
+        printer.set(align='center', bold=True)
+        printer.text(f"FACTURE N° {numero_facture}\n")
+        printer.set(bold=False)
+        printer.text("-" * 42 + "\n")
+
+        # =====================================================
+        # 💊 DÉTAIL DES PRODUITS
+        # =====================================================
+        printer.set(align='left', bold=True)
+        printer.text(f"{'Produit':<18}|{'Qté':^5}|{'Prix':^9}|{'PT':^9}\n")
+        printer.set(bold=False)
+        printer.text("-" * 42 + "\n")
+
         total = 0
         for l in lignes:
             produit = l.produit.nom_medicament
@@ -462,44 +518,135 @@ def imprimer_ticket_vente(vente, lignes):
             sous_total = qte * pu
             total += sous_total
 
-            # Nom du produit (tronqué à 22 caractères pour tenir sur 80mm)
-            nom_affiche = (produit[:22] + '..') if len(produit) > 22 else produit
-            printer.text(f"{nom_affiche:<22} {qte} x {pu:.2f}\n")
-            printer.text(f"{'':<22}   = {sous_total:.2f}\n")
+            # Tronquer le nom du produit si trop long
+            nom_affiche = (produit[:18] + '..') if len(produit) > 18 else produit
 
-        printer.text("-" * 32 + "\n")
+            # Afficher les colonnes avec séparateurs |
+            printer.text(f"{nom_affiche:<18}|{qte:^5}|{pu:>7.2f}Fc|{sous_total:>7.2f}Fc\n")
 
-        # === 💰 TOTAL ===
+        printer.text("-" * 42 + "\n")
+
+        # =====================================================
+        # 💰 TOTAL
+        # =====================================================
         printer.set(align='right', bold=True)
         printer.text(f"TOTAL : {total:.2f} Fc\n")
         printer.set(bold=False)
-        
-        # Conversion USD (taux fixe)
-        taux_dollar = 2900
-        total_usd = total / taux_dollar
-        printer.text(f"Soit : ${total_usd:.2f} USD\n")
+        printer.text("-" * 42 + "\n")
+
+        # =====================================================
+        # ⚠️ AVERTISSEMENT CLIENT
+        # =====================================================
+        printer.set(align='center')
+        printer.text("Chers clients, veuillez vérifier vos\n")
+        printer.text("produits à la livraison.\n")
         printer.text("-" * 32 + "\n")
 
-        # === 📝 MENTIONS LÉGALES ===
-        printer.set(align='center')
-        printer.text("Les produits vendus ne sont\n")
-        printer.text("ni repris, ni échangés.\n\n")
-        printer.text("Adresse: Lunguvu n°6,\n")
-        printer.text("quartier Foire, commune de Lemba\n")
-        printer.text("Pharmacien Grâce MUSANFUR\n\n")
-
-        # === 🙏 MESSAGE DE FIN ===
-        printer.set(bold=True)
+        # =====================================================
+        # 🙏 REMERCIEMENT
+        # =====================================================
+        printer.set(align='center', bold=True)
         printer.text("Merci pour votre paiement !\n")
         printer.set(bold=False)
-        printer.text("A bientôt !\n\n\n")
+        printer.text("À bientôt !\n\n\n")
+        qr_content = f"Facture N° {numero_facture} - {pharmacie.nom_pharm}"
+        printer.set(align='center')
+        printer.qr(qr_content, size=6)
+        printer.text("-" * 42 + "\n")
 
         # ✂️ Couper le papier
         printer.cut()
         printer.close()
+
 
         print(">>> Ticket imprimé avec succès ✅")
 
     except Exception as e:
         print(f"⚠️ Erreur impression ticket: {e}")
         traceback.print_exc()
+
+
+#########################-----Rapport Mensuel et Calcul Marge de Progretion ou regrestion----###############
+# pharmacie/utils/finance_analysis.py
+from datetime import datetime
+from django.db.models import Sum
+from django.db.models.functions import TruncMonth
+from decimal import Decimal
+
+from pharmacie.models import VenteProduit, Depense, RapportMensuel
+
+
+def calculer_totaux_mensuels(pharmacie, annee, mois):
+    """Calcule les ventes, dépenses et bénéfices d’un mois donné."""
+    ventes = (
+        VenteProduit.objects.filter(
+            pharmacie=pharmacie,
+            date_vente__year=annee,
+            date_vente__month=mois
+        )
+        .aggregate(total_ventes=Sum("montant_total"))
+    )["total_ventes"] or Decimal(0)
+
+    depenses = (
+        Depense.objects.filter(
+            pharmacie=pharmacie,
+            date_depense__year=annee,
+            date_depense__month=mois
+        )
+        .aggregate(total_depenses=Sum("montant"))
+    )["total_depenses"] or Decimal(0)
+
+    benefice = ventes - depenses
+    return ventes, depenses, benefice
+
+
+def get_rapport_precedent(pharmacie, annee, mois):
+    """Renvoie le rapport du mois précédent s’il existe."""
+    if mois == 1:
+        annee_prec, mois_prec = annee - 1, 12
+    else:
+        annee_prec, mois_prec = annee, mois - 1
+
+    return RapportMensuel.objects.filter(
+        pharmacie=pharmacie,
+        annee=annee_prec,
+        mois=mois_prec
+    ).first()
+
+
+def generer_rapport_mensuel(pharmacie, annee, mois):
+    """Génère et enregistre un rapport mensuel complet."""
+    ventes, depenses, benefice = calculer_totaux_mensuels(pharmacie, annee, mois)
+    precedent = get_rapport_precedent(pharmacie, annee, mois)
+
+    croissance_ventes = Decimal(0)
+    croissance_benef = Decimal(0)
+
+    if precedent:
+        if precedent.total_ventes > 0:
+            croissance_ventes = ((ventes - precedent.total_ventes) / precedent.total_ventes) * 100
+        if precedent.total_benefice > 0:
+            croissance_benef = ((benefice - precedent.total_benefice) / precedent.total_benefice) * 100
+
+    rapport, created = RapportMensuel.objects.update_or_create(
+        pharmacie=pharmacie,
+        annee=annee,
+        mois=mois,
+        defaults={
+            "total_ventes": ventes,
+            "total_depenses": depenses,
+            "total_benefice": benefice,
+            "croissance_ventes": round(croissance_ventes, 2),
+            "croissance_benefice": round(croissance_benef, 2),
+        },
+    )
+    return rapport
+
+
+def generer_rapports_pour_annee(pharmacie, annee=None):
+    """Génère tous les rapports pour une année donnée (utile pour recalculer ou initialiser)."""
+    if annee is None:
+        annee = datetime.now().year
+
+    for mois in range(1, 13):
+        generer_rapport_mensuel(pharmacie, annee, mois)
