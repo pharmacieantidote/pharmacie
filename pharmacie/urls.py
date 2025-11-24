@@ -47,7 +47,10 @@ LogoutAPIView,
 LotsProduitPharmacieViewSet,
 stock_total,
 DepenseViewSet,
-analyse_stock_api
+analyse_stock_api,
+liste_rapports,
+generer_rapport
+
 
 
 
@@ -108,11 +111,13 @@ urlpatterns = [
     path('api/reception/confirm/', ConfirmerReceptionView.as_view(), name='confirmer-reception'),
     path('api/commande/<uuid:pk>/', CommandeDetailView.as_view(), name='commande-detail'),
 
-    # Liste des pharmacies de l'utilisateur connecté
+    # Liste des pharmacies de l'utiilisateur connecté
     path('api/pharmacie/', PharmacieUserListAPIView.as_view(), name='pharmacie-user'),
     path('api/clients/<uuid:pk>/examen/', CreateMedicalExamView.as_view(), name='create-exam'),
     path('api/clients/<uuid:pk>/ordonnance/', CreatePrescriptionView.as_view(), name='create-prescription'),
     path('api/clients/<uuid:pk>/dossier-medical/', DossierMedicalClientView.as_view(), name='dossier-medical'),
     path('api/rapport-stock/<uuid:pharmacie_id>/', analyse_stock_api, name='analyse_stock_api'),
+    path("api/rapports/", liste_rapports, name="liste_rapports"),
+    path("api/rapports/generer/", generer_rapport, name="generer_rapport"),
     
 ]

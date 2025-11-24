@@ -858,3 +858,27 @@ class DepenseSerializer(serializers.ModelSerializer):
             'date_depense', 'cree_par', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'cree_par', 'created_at', 'updated_at']
+
+#####################################---Rapport Mensuel et Marge Progression---#################
+from rest_framework import serializers
+from pharmacie.models import RapportMensuel
+
+class RapportMensuelSerializer(serializers.ModelSerializer):
+    pharmacie_nom = serializers.CharField(source="pharmacie.nom_phar", read_only=True)
+    mois_nom = serializers.CharField()
+
+    class Meta:
+        model = RapportMensuel
+        fields = [
+            "id",
+            "pharmacie_nom",
+            "annee",
+            "mois",
+            "mois_nom",
+            "total_ventes",
+            "total_depenses",
+            "total_benefice",
+            "croissance_ventes",
+            "croissance_benefice",
+            "cree_le",
+        ]

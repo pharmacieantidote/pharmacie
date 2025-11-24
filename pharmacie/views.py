@@ -1510,3 +1510,52 @@ def analyse_stock_api(request, pharmacie_id):
     }
 
     return JsonResponse(data, safe=False, json_dumps_params={'ensure_ascii': False})
+
+#####################--Rapport Mensuell Marge Progression---###################################
+from datetime import datetime
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+
+from pharmacie.models import RapportMensuel
+from pharmacie.utils import generer_rapport_mensuel
+from pharmacie.serializers import RapportMensuelSerializer
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def liste_rapports(request):
+    """
+    ✅ Liste les rapports mensuels de la pharmacie de l’utilisateur.
+    - Paramètres : ?annee=2025 (optionnel)
+    """
+    pharmacie = request.user.pharmacie  # user lié à une pharmacie
+    annee = request.GET.get("annee", datetime.now().year)
+
+    rapports = RapportMensuel.objects.filter(pharmacie=pharmacie, annee=annee).order_by("mois")
+    serializer = RapportMensuelSerializer(rapports, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generer_rapport(request):
+    """
+    ✅ Génère un rapport pour un mois/année donné.
+    Si rien n’est précisé → prend le mois/année actuel.
+    """
+    pharmacie = request.user.pharmacie
+    annee = int(request.data.get("annee", datetime.now().year))
+    mois = int(request.data.get("mois", datetime.now().month))
+
+    rapport = generer_rapport_mensuel(pharmacie, annee, mois)
+    serializer = RapportMensuelSerializer(rapport)
+
+    return Response(
+        {
+            "message": f"Rapport généré pour {rapport.mois_nom} {annee}.",
+            "rapport": serializer.data,
+        },
+        status=status.HTTP_201_CREATED,
+    )

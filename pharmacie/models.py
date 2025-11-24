@@ -493,3 +493,47 @@ class Depense(models.Model):
         ordering = ['-date_depense']
         verbose_name = "Dépense"
         verbose_name_plural = "Dépenses"
+
+
+########################---RapportMensuel et analyse de regretion ou progression--######################
+# pharmacie/models/rapport.py
+import uuid
+from decimal import Decimal
+from django.db import models
+from django.utils.timezone import now
+
+class RapportMensuel(models.Model):
+    """
+    Représente les indicateurs financiers mensuels d'une pharmacie :
+    ventes, dépenses, bénéfices, et taux de croissance.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    pharmacie = models.ForeignKey(Pharmacie, on_delete=models.CASCADE, related_name="rapports_mensuels")
+    
+    annee = models.PositiveIntegerField()
+    mois = models.PositiveSmallIntegerField()  # 1 à 12
+    
+    total_ventes = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_depenses = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_benefice = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    croissance_ventes = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    croissance_benefice = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+
+    cree_le = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("pharmacie", "annee", "mois")
+        ordering = ["-annee", "-mois"]
+        verbose_name = "Rapport mensuel"
+        verbose_name_plural = "Rapports mensuels"
+
+    def __str__(self):
+        return f"{self.pharmacie.nom_phar} - {self.mois}/{self.annee}"
+
+    @property
+    def mois_nom(self):
+        """Renvoie le nom du mois en texte (ex : 'Janvier')"""
+        import calendar
+        return calendar.month_name[self.mois]
+
