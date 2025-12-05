@@ -154,40 +154,61 @@ export default function VentePage() {
   // 💰 Calcul du total
   const totalVente = lignes.reduce((s, l) => s + l.total, 0);
 
-  // 🧾 Proformat
-  const handleProformat = () => {
-    if (!selectedClient) {
-      alert('Veuillez sélectionner un client pour générer le proformat.');
-      return;
-    }
+ // 🧾 Proformat
+const handleProformat = () => {
+  if (!selectedClient) {
+    alert('Veuillez sélectionner un client pour générer le proformat.');
+    return;
+  }
 
-    const lignesValides = lignes.filter(
-      (l) => l.produit !== null && l.quantite > 0 && l.prix_unitaire > 0
-    );
+  // ✅ CORRIGÉ : on ne filtre PAS par prix_unitaire > 0
+  const lignesValides = lignes.filter(
+    (l) => l.produit !== null && l.quantite > 0
+  );
 
-    if (lignesValides.length === 0) {
-      alert('Aucun médicament valide sélectionné.');
-      return;
-    }
+  if (lignesValides.length === 0) {
+    alert('Aucun médicament valide sélectionné.');
+    return;
+  }
 
-    generateAndDownloadPDF({
-      lignes: lignesValides,
-      selectedClient,
-      totalVente: lignesValides.reduce((s, l) => s + l.total, 0),
-      pharmacie: pharmacieData || {
-        nom_pharm: 'Nom inconnu',
-        ville_pharm: '',
-        commune_pharm: '',
-        adresse_pharm: '',
-        rccm: '',
-        idnat: '',
-        ni: '',
-        telephone: '',
-        logo_pharm: null,
+  // 🔥 Impression thermique
+  if (accessToken) {
+    axios.post(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/imprimer-proformat/`,
+      {
+        client: selectedClient?.id || null,
+        lignes: lignesValides.map((l) => ({
+          produit: l.produit!.id,
+          quantite: l.quantite,
+          // ⚠️ On n'envoie PAS prix_unitaire → le backend l'injecte
+        })),
       },
-      type: 'proformat',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    ).catch((err) => {
+      console.error("Erreur impression proformat :", err);
+      alert("Impossible d'imprimer le proformat sur l'imprimante thermique.");
     });
-  };
+  }
+
+  // 📄 Génération PDF (inchangée)
+  generateAndDownloadPDF({
+    lignes: lignesValides,
+    selectedClient,
+    totalVente: lignesValides.reduce((s, l) => s + l.total, 0),
+    pharmacie: pharmacieData || {
+      nom_pharm: 'Nom inconnu',
+      ville_pharm: '',
+      commune_pharm: '',
+      adresse_pharm: '',
+      rccm: '',
+      idnat: '',
+      ni: '',
+      telephone: '',
+      logo_pharm: null,
+    },
+    type: 'proformat',
+  });
+};
 
   // 💾 Soumission de la vente (côté API)
   const handleSubmit = async () => {

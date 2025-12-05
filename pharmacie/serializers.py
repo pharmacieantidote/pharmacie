@@ -601,6 +601,43 @@ class VenteProduitSerializer(serializers.ModelSerializer):
         return vente
 
 
+###################proformat facture################################
+class ProformatLigneSerializer(serializers.Serializer):
+    produit = serializers.PrimaryKeyRelatedField(queryset=ProduitPharmacie.objects.all())
+    quantite = serializers.IntegerField(min_value=1)
+    prix_unitaire = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+
+class ProformatSerializer(serializers.Serializer):
+    client = serializers.PrimaryKeyRelatedField(
+        queryset=Client.objects.all(),
+        allow_null=True,
+        required=False
+    )
+    lignes = ProformatLigneSerializer(many=True)
+
+    def validate(self, data):
+        pharmacie = self.context["pharmacie"]
+
+        # Vérification client
+        client = data.get("client")
+        if client and client.pharmacie != pharmacie:
+            raise serializers.ValidationError("Le client n'appartient pas à cette pharmacie")
+
+        # Vérification produits
+        for ligne in data["lignes"]:
+            produit = ligne["produit"]
+            if produit.pharmacie != pharmacie:
+                raise serializers.ValidationError(
+                    f"Le produit {produit.nom_medicament} n'appartient pas à cette pharmacie"
+                )
+
+            # Injecter prix manquant
+            if not ligne.get("prix_unitaire"):
+                ligne["prix_unitaire"] = produit.prix_vente
+
+        return data
+
+
 ########################### CLIENT ET TOUT C QUI LUI CONCERNE################################
 from rest_framework import serializers
 from .models import Client, ClientPurchase, MedicalExam, Prescription

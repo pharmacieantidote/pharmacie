@@ -149,15 +149,21 @@ class ConfirmerReceptionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        print("Données reçues dans la vue :", request.data)
         serializer = ReceptionProduitSerializer(data=request.data, context={'request': request})
+        
         if serializer.is_valid():
             commande = serializer.validated_data['commande']
+
+            # 🔥 Bloquere réception d’une commande d’une autre pharmacie
+            if commande.pharmacie != request.user.pharmacie:
+                return Response({"error": "Cette commande ne vous appartient pas."}, status=403)
+
             commande.etat = 'confirmee'
             commande.save()
 
             serializer.save(utilisateur=request.user)
             return Response({"message": "Réception confirmée avec succès."}, status=201)
+
         return Response(serializer.errors, status=400)
 
 
@@ -192,7 +198,7 @@ from comptes.models import Pharmacie
 from .serializers import (
     VenteProduitSerializer,
     ProduitsPharmacieSerializer,
-    PharmacieSerializer
+    PharmacieSerializer, ProformatSerializer
 )
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
@@ -247,6 +253,57 @@ class VenteCreateAPIView(generics.CreateAPIView):
             utilisateur=self.request.user,
             client=client
         )
+
+
+
+
+
+##########Proformat###################
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+
+# Pour afficher les erreurs en console
+import traceback
+
+# Tes modèles
+from .models import Client, ProduitPharmacie
+
+# Ta fonction pour imprimer le ticket proformat
+from .utils import imprimer_ticket_proformat
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def imprimer_proformat(request):
+    pharmacie = request.user.pharmacie
+
+    serializer = ProformatSerializer(data=request.data, context={"pharmacie": pharmacie})
+
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+
+    data = serializer.validated_data
+
+    # Construire données propres pour impression
+    lignes_clean = []
+    for l in data["lignes"]:
+        prod = l["produit"]
+        lignes_clean.append({
+            "nom": prod.nom_medicament,
+            "quantite": l["quantite"],
+            "prix_unitaire": float(l["prix_unitaire"])
+        })
+
+    # Impression
+    imprimer_ticket_proformat(
+        pharmacie=pharmacie,
+        client=data.get("client"),
+        lignes=lignes_clean
+    )
+
+    return Response({"message": "Proformat imprimé avec succès"})
+
 
 ################# Historique de la vente #######################
 # views.py

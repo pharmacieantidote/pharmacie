@@ -566,6 +566,113 @@ def imprimer_ticket_vente(vente, lignes):
         traceback.print_exc()
 
 
+################### proforma##################
+from escpos.printer import Usb
+import random
+import traceback
+from datetime import datetime
+
+def imprimer_ticket_proformat(client, pharmacie, lignes):
+    try:
+        printer = Usb(0x1fc9, 0x2016)
+
+        # ✅ Largeur standard 58mm = 32 colonnes max
+        printer.set(width=1, height=1)
+
+        # ========================
+        # 🏪 EN-TÊTE
+        # ========================
+        date_now = datetime.now().strftime('%d/%m/%Y %H:%M')
+        printer.set(align='left', bold=False)
+        printer.text(f"Bienvenue chez\n")
+        printer.text(f"{date_now:>32}\n")
+
+        printer.set(bold=True)
+        printer.text(f"{pharmacie.nom_pharm[:32]}\n")
+
+        printer.set(bold=False, font='b')  # texte petit
+        printer.text("(Votre Santé, notre priorité)\n")
+
+        printer.text(f"Adresse: {pharmacie.adresse_pharm[:32]}\n")
+        printer.text(f"Tel: {pharmacie.telephone[:32]}\n")
+        printer.text("-" * 32 + "\n")
+
+        # ========================
+        # 👤 CLIENT
+        # ========================
+        if client:
+            printer.text(f"Client: {client.nom_complet[:28]}\n")
+            if client.telephone:
+                printer.text(f"Tél: {client.telephone[:28]}\n")
+        else:
+            printer.text("Client: ---\n")
+        printer.text("-" * 32 + "\n")
+
+        # ========================
+        # 🧾 PROFORMAT
+        # ========================
+        numero_proformat = random.randint(1000, 9999)
+        printer.set(align='center', bold=True)
+        printer.text(f"PROFORMAT N°{numero_proformat}\n")
+        printer.set(bold=False)
+        printer.text("-" * 32 + "\n")
+
+        # ========================
+        # 💊 DÉTAIL PRODUITS
+        # ========================
+        if not lignes:
+            printer.text("⚠️ AUCUN PRODUIT\n")
+            printer.text("-" * 32 + "\n")
+        else:
+            printer.set(align='left', bold=True)
+            # 12 + 4 + 8 + 8 = 32
+            printer.text(f"{'PRODUIT':<12}{'QTE':>4}{'P.U':>8}{'TOT':>8}\n")
+            printer.set(bold=False)
+            printer.text("-" * 32 + "\n")
+
+            total = 0
+            for l in lignes:
+                nom = l["nom"][:12]
+                qte = l["quantite"]
+                pu = float(l["prix_unitaire"])
+                sous_total = qte * pu
+                total += sous_total
+                printer.text(f"{nom:<12}{qte:>4}{pu:>8.0f}{sous_total:>8.0f}\n")
+
+            printer.text("-" * 32 + "\n")
+
+            # 💰 TOTAL
+            printer.set(align='right', bold=True)
+            printer.text(f"TOTAL: {total:.0f} Fc\n")
+            printer.set(bold=False)
+            printer.text("-" * 32 + "\n")
+
+        # ========================
+        # 📝 MESSAGE + QR
+        # ========================
+        printer.set(align='center')
+        printer.text("Vérifiez vos produits\nà la livraison.\n")
+        printer.text("-" * 32 + "\n")
+        printer.text("Merci ! À bientôt !\n\n")
+
+        # 🔲 QR Code (taille réduite pour fiabilité)
+        qr_content = f"Proformat {numero_proformat} - {pharmacie.nom_pharm}"
+        try:
+            printer.qr(qr_content, size=4)  # size=4 → plus fiable que 6
+        except Exception as qr_e:
+            printer.text("QR: indisponible\n")
+            print(f"⚠️ QR échoué: {qr_e}")
+
+        printer.cut()
+        printer.close()
+        print("✅ Proformat imprimé avec succès")
+
+    except Exception as e:
+        print(f"❌ Erreur impression proformat: {e}")
+        traceback.print_exc()
+
+
+
 #########################-----Rapport Mensuel et Calcul Marge de Progretion ou regrestion----###############
 # pharmacie/utils/finance_analysis.py
 from datetime import datetime
