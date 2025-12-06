@@ -180,9 +180,20 @@ from rest_framework import generics
 from django_filters.rest_framework import DjangoFilterBackend
 
 class CommandeProduitListView(generics.ListAPIView):
-    queryset = CommandeProduit.objects.filter(etat='en_attente').prefetch_related('lignes__produit_fabricant__fabricant').select_related('fabricant')
     serializer_class = CommandeProduitDetailSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        pharmacie = user.pharmacie   # 🔥 La pharmacie de l’utilisateur connecté
+
+        return (
+            CommandeProduit.objects
+            .filter(pharmacie=pharmacie, etat='en_attente')  # ✔ Filtrage strict
+            .select_related('fabricant', 'pharmacie')        # ✔ Relations 1-to-1 / FK
+            .prefetch_related('lignes__produit_fabricant__fabricant')  # ✔ Relations many
+        )
+
   
 ############################vente produit###########################
 from rest_framework import generics

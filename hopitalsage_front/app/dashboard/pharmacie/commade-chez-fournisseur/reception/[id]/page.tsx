@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation';
 interface LigneCommande {
   id: number;
   nom_produit: string;
-  quantite_commande: number; // Assurez-vous que ce champ existe dans la réponse API
+  quantite_commande: number; // Assurez-vocus que ce champ existe dans la réponse API
   quantite_recue: string;
 }
 

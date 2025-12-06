@@ -393,10 +393,18 @@ class CommandeProduitLigneDetailSerializer(serializers.ModelSerializer):
 class CommandeProduitDetailSerializer(serializers.ModelSerializer):
     lignes = CommandeProduitLigneDetailSerializer(many=True, read_only=True)
     fabricant = FabricantSerializer(read_only=True)
+    pharmacie = serializers.CharField(source='pharmacie.nom_phar', read_only=True)
 
     class Meta:
         model = CommandeProduit
-        fields = ['id', 'pharmacie', 'date_commande', 'etat', 'fabricant', 'lignes']
+        fields = [
+            'id',
+            'pharmacie',        # nom de la pharmacie au lieu de l'objet complet
+            'date_commande',
+            'etat',
+            'fabricant',
+            'lignes'
+        ]
 
 ##################### la vente de produit ########################
 from rest_framework import serializers
