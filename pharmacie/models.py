@@ -517,8 +517,8 @@ class RapportMensuel(models.Model):
     total_depenses = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_benefice = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
-    croissance_ventes = models.DecimalField(max_digits=6, decimal_places=2, default=0)
-    croissance_benefice = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    croissance_ventes = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    croissance_benefice = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     cree_le = models.DateTimeField(auto_now_add=True)
 
