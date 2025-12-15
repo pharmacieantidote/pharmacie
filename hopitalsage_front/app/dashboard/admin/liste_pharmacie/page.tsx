@@ -10,7 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { motion } from 'framer-motion';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -42,6 +41,7 @@ interface User {
 /* ===================== CONSTANTES ===================== */
 
 const ITEMS_PER_PAGE = 5;
+const API = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 /* ===================== COMPONENT ===================== */
 
@@ -67,14 +67,13 @@ export default function PharmaciesPage() {
     const fetchPharmacies = async () => {
       const token = localStorage.getItem('accessToken');
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pharmacies/`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const res = await fetch(`${API}/api/pharmacies/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) throw new Error();
         setPharmacies(await res.json());
       } catch {
-        toast.error("Erreur de chargement des pharmacies");
+        toast.error('Erreur de chargement des pharmacies');
       } finally {
         setLoading(false);
       }
@@ -85,8 +84,8 @@ export default function PharmaciesPage() {
   /* ===================== LOAD USERS ===================== */
 
   const fetchUsers = async (pharmacieId: string) => {
-    if (usersByPharmacie[pharmacieId]) {
-      setOpenedPharmacie(pharmacieId);
+    if (openedPharmacie === pharmacieId) {
+      setOpenedPharmacie(null);
       return;
     }
 
@@ -95,15 +94,17 @@ export default function PharmaciesPage() {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/pharmacies/${pharmacieId}/users/`,
+        `${API}/api/admin/pharmacies/${pharmacieId}/users/`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
       if (!res.ok) throw new Error();
+
       const data = await res.json();
       setUsersByPharmacie((prev) => ({ ...prev, [pharmacieId]: data }));
       setOpenedPharmacie(pharmacieId);
     } catch {
-      toast.error("Impossible de charger les utilisateurs");
+      toast.error('Impossible de charger les utilisateurs');
     } finally {
       setLoadingUsers(false);
     }
@@ -111,22 +112,64 @@ export default function PharmaciesPage() {
 
   /* ===================== ACTIONS ===================== */
 
-  const toggleUserStatus = async (userId: string) => {
-    const token = localStorage.getItem('accessToken');
-    await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/users/${userId}/toggle-active/`,
-      { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
-    );
-    toast.success("Statut utilisateur modifié");
-  };
+  // Frontend - UNE SEULE URL
+// Frontend - gardez votre code actuel
+const toggleUserStatus = async (pharmacieId: string, user: User) => {
+  const token = localStorage.getItem('accessToken');
 
-  const deleteUser = async (userId: string) => {
+  const url = user.is_active
+    ? `${API}/api/admins/${user.id}/desactiver/`
+    : `${API}/api/admins/${user.id}/reactiver/`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      // Essayez de voir l'erreur détaillée
+      const errorData = await res.json().catch(() => ({}));
+      console.error('Error response:', errorData);
+      throw new Error(errorData.detail || 'Erreur serveur');
+    }
+
+    // update local state
+    setUsersByPharmacie((prev) => ({
+      ...prev,
+      [pharmacieId]: prev[pharmacieId].map((u) =>
+        u.id === user.id ? { ...u, is_active: !u.is_active } : u
+      ),
+    }));
+
+    toast.success('Statut utilisateur mis à jour');
+  } catch (error: any) {
+    toast.error(error.message || 'Erreur lors du changement de statut');
+  }
+};
+
+  const deleteUser = async (pharmacieId: string, userId: string) => {
     const token = localStorage.getItem('accessToken');
-    await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/users/${userId}/`,
-      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
-    );
-    toast.success("Utilisateur supprimé");
+
+    if (!confirm('Supprimer cet utilisateur ?')) return;
+
+    try {
+      const res = await fetch(`${API}/api/users/${userId}/`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error();
+
+      setUsersByPharmacie((prev) => ({
+        ...prev,
+        [pharmacieId]: prev[pharmacieId].filter((u) => u.id !== userId),
+      }));
+
+      toast.success('Utilisateur supprimé');
+    } catch {
+      toast.error('Erreur lors de la suppression');
+    }
   };
 
   /* ===================== HELPERS ===================== */
@@ -225,12 +268,12 @@ export default function PharmaciesPage() {
                                   <p className="font-semibold">{u.username}</p>
                                   <p className="text-sm text-gray-500">{u.role}</p>
                                   <p className="text-xs">
-                                    Connexions : {u.total_connections} | Temps :
+                                    Connexions : {u.total_connections} | Temps :{' '}
                                     {formatDuration(u.total_time_seconds)}
                                   </p>
                                 </div>
 
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 items-center">
                                   <span
                                     className={`px-2 py-1 text-xs rounded ${
                                       u.is_online
@@ -242,7 +285,9 @@ export default function PharmaciesPage() {
                                   </span>
 
                                   <button
-                                    onClick={() => toggleUserStatus(u.id)}
+                                    onClick={() =>
+                                      toggleUserStatus(pharm.id, u)
+                                    }
                                     className={`px-3 py-1 text-white rounded ${
                                       u.is_active
                                         ? 'bg-red-500'
@@ -253,7 +298,9 @@ export default function PharmaciesPage() {
                                   </button>
 
                                   <button
-                                    onClick={() => deleteUser(u.id)}
+                                    onClick={() =>
+                                      deleteUser(pharm.id, u.id)
+                                    }
                                     className="bg-black text-white px-3 py-1 rounded"
                                   >
                                     Supprimer

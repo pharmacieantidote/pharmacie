@@ -4,7 +4,7 @@ from .views import LoginAPIView
 from django.urls import path, include
 from uuid import UUID
 from rest_framework.routers import DefaultRouter
-from .views import PharmacieViewSet,liste_admins,PharmacieUsersAdminAPIView,reactiver_utilisateur,UpdateProfileView, desactiver_utilisateur,RegisterAdminView,DashboardComptableAPIView, UserViewSet,ComptableUserViewSet, CreateDirectorView, PharmacieDetailView #CreateAccountantView
+from .views import PharmacieViewSet,ReactiverUserAPIView,DeleteUserAPIView,DesactiverUserAPIView,liste_admins,ToggleUserActiveAPIView,PharmacieUsersAdminAPIView,reactiver_utilisateur,UpdateProfileView, desactiver_utilisateur,RegisterAdminView,DashboardComptableAPIView, UserViewSet,ComptableUserViewSet, CreateDirectorView, PharmacieDetailView #CreateAccountantView
 
 router = DefaultRouter()
 router.register(r'pharmacies', PharmacieViewSet)
@@ -23,6 +23,12 @@ urlpatterns = [
     path('api/admins/<uuid:user_id>/reactiver/', reactiver_utilisateur, name='reactiver-utilisateur'),
     path('api/update-profile/', UpdateProfileView.as_view(), name='update-profile'),
     path('api/admin/pharmacies/<uuid:pharmacie_id>/users/',PharmacieUsersAdminAPIView.as_view()),
+   # urls.py - UNE SEULE URL
+    path('api/admins/<uuid:user_id>/toggle-active/', ToggleUserActiveAPIView.as_view(), name='toggle-user-active'),
+    path('api/users/<uuid:user_id>/', DeleteUserAPIView.as_view(), name='delete-user'),
+    # urls.py
+    path('api/admins/<uuid:user_id>/desactiver/', DesactiverUserAPIView.as_view(), name='desactiver-user'),
+    path('api/admins/<uuid:user_id>/reactiver/', ReactiverUserAPIView.as_view(), name='reactiver-user'),
     #path('api/create-accountant/', CreateAccountantView.as_view(), name='create-accountant'),
     
 ]

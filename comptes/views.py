@@ -281,35 +281,151 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 class PharmacieUsersAdminAPIView(generics.ListAPIView):
     serializer_class = AdminUserDetailSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         pharmacie_id = self.kwargs['pharmacie_id']
         return User.objects.filter(pharmacie_id=pharmacie_id)
-    
+
+# views.py
 # views.py
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from comptes.models import User
+
+from comptes.permissions import IsAdminOrSuperuser
 
 class ToggleUserActiveAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminOrSuperuser]
 
     def post(self, request, user_id):
-        user = get_object_or_404(User, id=user_id)
-        user.is_active = not user.is_active
-        user.save()
+        # Vérifier que l'utilisateur connecté a les permissions
+        if not request.user.is_staff and not request.user.is_superuser:
+            return Response(
+                {"detail": "You do not have permission to perform this action."},
+                status=403
+            )
+        
+        # Récupérer l'utilisateur cible
+        target_user = get_object_or_404(User, id=user_id)
+        
+        # Empêcher un admin de se désactiver lui-même
+        if target_user.id == request.user.id:
+            return Response(
+                {"detail": "You cannot deactivate your own account."},
+                status=400
+            )
+        
+        # Basculer le statut
+        target_user.is_active = not target_user.is_active
+        target_user.save()
+        
         return Response({
-            "message": "Statut utilisateur mis à jour",
-            "is_active": user.is_active
+            "is_active": target_user.is_active,
+            "message": f"User {'activated' if target_user.is_active else 'deactivated'} successfully"
+        })
+    
+
+
+
+# comptes/views.py ou pharmacie/views.py
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
+from comptes.models import User
+from comptes.permissions import IsAdminOrSuperuser
+
+logger = logging.getLogger(__name__)
+
+class DesactiverUserAPIView(APIView):
+    """
+    Vue pour DÉSACTIVER un utilisateur
+    """
+    permission_classes = [IsAuthenticated, IsAdminOrSuperuser]
+
+    def post(self, request, user_id):
+        logger.info(f"=== DesactiverUserAPIView ===")
+        logger.info(f"Request user: {request.user.username} (ID: {request.user.id})")
+        
+        # 1. Récupérer l'utilisateur cible
+        target_user = get_object_or_404(User, id=user_id)
+        logger.info(f"Target user: {target_user.username} (ID: {target_user.id})")
+        
+        # 2. Empêcher de se désactiver soi-même
+        if target_user.id == request.user.id:
+            logger.warning(f"User tried to deactivate themselves")
+            return Response(
+                {"detail": "You cannot deactivate your own account."},
+                status=400
+            )
+        
+        # 3. Empêcher de désactiver un superuser (sauf si on est superuser)
+        if target_user.is_superuser and not request.user.is_superuser:
+            logger.warning(f"Non-superuser tried to deactivate a superuser")
+            return Response(
+                {"detail": "Only superusers can deactivate other superusers."},
+                status=403
+            )
+        
+        # 4. Désactiver l'utilisateur
+        logger.info(f"Before: is_active = {target_user.is_active}")
+        target_user.is_active = False
+        target_user.save()
+        logger.info(f"After: is_active = {target_user.is_active}")
+        
+        logger.info(f"=== User deactivated successfully ===")
+        
+        return Response({
+            "id": str(target_user.id),
+            "username": target_user.username,
+            "is_active": target_user.is_active,
+            "message": "User deactivated successfully"
         })
 
 
+class ReactiverUserAPIView(APIView):
+    """
+    Vue pour RÉACTIVER un utilisateur
+    """
+    permission_classes = [IsAuthenticated, IsAdminOrSuperuser]
+
+    def post(self, request, user_id):
+        logger.info(f"=== ReactiverUserAPIView ===")
+        logger.info(f"Request user: {request.user.username} (ID: {request.user.id})")
+        
+        # 1. Récupérer l'utilisateur cible
+        target_user = get_object_or_404(User, id=user_id)
+        logger.info(f"Target user: {target_user.username} (ID: {target_user.id})")
+        
+        # 2. Réactiver l'utilisateur
+        logger.info(f"Before: is_active = {target_user.is_active}")
+        target_user.is_active = True
+        target_user.save()
+        logger.info(f"After: is_active = {target_user.is_active}")
+        
+        logger.info(f"=== User reactivated successfully ===")
+        
+        return Response({
+            "id": str(target_user.id),
+            "username": target_user.username,
+            "is_active": target_user.is_active,
+            "message": "User activated successfully"
+        })
+
+
+
+
+
+
+
 class DeleteUserAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminOrSuperuser]
 
     def delete(self, request, user_id):
         user = get_object_or_404(User, id=user_id)
         user.delete()
         return Response({"message": "Utilisateur supprimé"})
-
