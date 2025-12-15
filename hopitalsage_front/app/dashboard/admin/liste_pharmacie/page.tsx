@@ -14,8 +14,10 @@ import { motion } from 'framer-motion';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+/* ===================== INTERFACES ===================== */
+
 interface PharmacieData {
-  id: number;
+  id: string;
   nom_pharm: string;
   ville_pharm: string;
   commune_pharm: string;
@@ -24,176 +26,270 @@ interface PharmacieData {
   montant_mensuel: number;
   date_expiration: string | null;
   jours_restants: number;
-  est_expiree: boolean; 
+  est_expiree: boolean;
 }
 
 interface User {
-  id: number;
+  id: string;
   username: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  photo: string | null;
   role: string;
+  is_active: boolean;
+  is_online: boolean;
+  total_connections: number;
+  total_time_seconds: number;
 }
+
+/* ===================== CONSTANTES ===================== */
 
 const ITEMS_PER_PAGE = 5;
 
-export default function PharmaciesPage() {
-  const [userData, setUserData] = useState<User | null>(null);
-  const [pharmacies, setPharmacies] = useState<PharmacieData[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [currentPage, setCurrentPage] = useState<number>(1);
+/* ===================== COMPONENT ===================== */
 
-  // Charger les données utilisateur depuis le localStorage
+export default function PharmaciesPage() {
+  const [userData, setUserData] = useState<any>(null);
+  const [pharmacies, setPharmacies] = useState<PharmacieData[]>([]);
+  const [usersByPharmacie, setUsersByPharmacie] = useState<Record<string, User[]>>({});
+  const [openedPharmacie, setOpenedPharmacie] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  /* ===================== LOAD USER ===================== */
+
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUserData(parsedUser);
-      } catch (error) {
-        console.error('Erreur lors du parsing de l’utilisateur', error);
-      }
-    }
+    if (storedUser) setUserData(JSON.parse(storedUser));
   }, []);
 
-  // Charger les pharmacies via l’API
+  /* ===================== LOAD PHARMACIES ===================== */
+
   useEffect(() => {
     const fetchPharmacies = async () => {
-      const accessToken = localStorage.getItem('accessToken');
-
-      if (!accessToken) {
-        toast.error('Vous devez être connecté.');
-        setLoading(false);
-        return;
-      }
-
+      const token = localStorage.getItem('accessToken');
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pharmacies/`, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        if (!response.ok) throw new Error('Échec du chargement des pharmacies');
-
-        const data = await response.json();
-        setPharmacies(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error('Erreur lors du chargement des pharmacies :', error);
-        toast.error('Impossible de charger les pharmacies.');
-        setPharmacies([]);
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pharmacies/`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) throw new Error();
+        setPharmacies(await res.json());
+      } catch {
+        toast.error("Erreur de chargement des pharmacies");
       } finally {
         setLoading(false);
       }
     };
-
     fetchPharmacies();
   }, []);
 
-  // Calcul pagination
-  const totalPages = Math.ceil(pharmacies.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const currentPharmacies = pharmacies.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  /* ===================== LOAD USERS ===================== */
 
-  const paginate = (page: number) => setCurrentPage(page);
+  const fetchUsers = async (pharmacieId: string) => {
+    if (usersByPharmacie[pharmacieId]) {
+      setOpenedPharmacie(pharmacieId);
+      return;
+    }
+
+    setLoadingUsers(true);
+    const token = localStorage.getItem('accessToken');
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/pharmacies/${pharmacieId}/users/`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setUsersByPharmacie((prev) => ({ ...prev, [pharmacieId]: data }));
+      setOpenedPharmacie(pharmacieId);
+    } catch {
+      toast.error("Impossible de charger les utilisateurs");
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  /* ===================== ACTIONS ===================== */
+
+  const toggleUserStatus = async (userId: string) => {
+    const token = localStorage.getItem('accessToken');
+    await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/users/${userId}/toggle-active/`,
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
+    );
+    toast.success("Statut utilisateur modifié");
+  };
+
+  const deleteUser = async (userId: string) => {
+    const token = localStorage.getItem('accessToken');
+    await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/users/${userId}/`,
+      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+    );
+    toast.success("Utilisateur supprimé");
+  };
+
+  /* ===================== HELPERS ===================== */
+
+  const formatDuration = (seconds: number) => {
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${d}j ${h}h ${m}m`;
+  };
+
+  /* ===================== PAGINATION ===================== */
+
+  const totalPages = Math.ceil(pharmacies.length / ITEMS_PER_PAGE);
+  const currentPharmacies = pharmacies.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  /* ===================== LOADING ===================== */
 
   if (loading || !userData) {
     return (
-      <div className="flex justify-center items-center h-screen bg-gray-100 dark:bg-zinc-950">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#007BFF]"
-        ></motion.div>
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin h-14 w-14 border-4 border-blue-500 rounded-full border-t-transparent" />
       </div>
     );
   }
+
+  /* ===================== RENDER ===================== */
 
   return (
     <>
       <HeaderAdmin user={userData} />
 
-      <main className="p-4 sm:p-6 space-y-6">
-        <motion.h1
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-3xl font-bold text-center text-[#007BFF] mb-6"
-        >
-          Liste des Pharmacies
-        </motion.h1>
+      <main className="p-6">
+        <h1 className="text-3xl font-bold text-center text-blue-600 mb-6">
+          Gestion des Pharmacies
+        </h1>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-4 overflow-x-auto"
-        >
+        <div className="bg-white dark:bg-zinc-900 rounded shadow p-4 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nom</TableHead>
                 <TableHead>Ville</TableHead>
                 <TableHead>Commune</TableHead>
-                <TableHead>Adresse</TableHead>
                 <TableHead>Téléphone</TableHead>
-                <TableHead>Montant Mensuel (€)</TableHead>
-                <TableHead>Date d'expiration</TableHead>
-                <TableHead>Jours restants</TableHead>
+                <TableHead>Montant</TableHead>
+                <TableHead>Expiration</TableHead>
+                <TableHead>Jours</TableHead>
+                <TableHead>Utilisateurs</TableHead>
               </TableRow>
             </TableHeader>
+
             <TableBody>
-              {currentPharmacies.length > 0 ? (
-                currentPharmacies.map((pharm) => (
-                  <TableRow key={pharm.id}>
+              {currentPharmacies.map((pharm) => (
+                <React.Fragment key={pharm.id}>
+                  <TableRow>
                     <TableCell>{pharm.nom_pharm}</TableCell>
                     <TableCell>{pharm.ville_pharm}</TableCell>
                     <TableCell>{pharm.commune_pharm}</TableCell>
-                    <TableCell>{pharm.adresse_pharm}</TableCell>
                     <TableCell>{pharm.telephone}</TableCell>
+                    <TableCell>${pharm.montant_mensuel}</TableCell>
                     <TableCell>
-                    {isNaN(parseFloat(pharm.montant_mensuel as any)) 
-                        ? '0.00' 
-                        : parseFloat(pharm.montant_mensuel as any).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      {pharm.date_expiration ? new Date(pharm.date_expiration).toLocaleDateString() : 'Non définie'}
+                      {pharm.date_expiration
+                        ? new Date(pharm.date_expiration).toLocaleDateString()
+                        : '—'}
                     </TableCell>
                     <TableCell>{pharm.jours_restants}</TableCell>
+                    <TableCell>
+                      <button
+                        onClick={() => fetchUsers(pharm.id)}
+                        className="text-blue-600 underline"
+                      >
+                        {openedPharmacie === pharm.id
+                          ? 'Masquer'
+                          : 'Voir utilisateurs'}
+                      </button>
+                    </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-4">
-                    Aucune pharmacie trouvée
-                  </TableCell>
-                </TableRow>
-              )}
+
+                  {openedPharmacie === pharm.id && (
+                    <TableRow>
+                      <TableCell colSpan={8}>
+                        <div className="space-y-2 p-3 bg-gray-50 dark:bg-zinc-800 rounded">
+                          {loadingUsers ? (
+                            <p>Chargement...</p>
+                          ) : usersByPharmacie[pharm.id]?.length ? (
+                            usersByPharmacie[pharm.id].map((u) => (
+                              <div
+                                key={u.id}
+                                className="flex justify-between items-center border p-2 rounded"
+                              >
+                                <div>
+                                  <p className="font-semibold">{u.username}</p>
+                                  <p className="text-sm text-gray-500">{u.role}</p>
+                                  <p className="text-xs">
+                                    Connexions : {u.total_connections} | Temps :
+                                    {formatDuration(u.total_time_seconds)}
+                                  </p>
+                                </div>
+
+                                <div className="flex gap-2">
+                                  <span
+                                    className={`px-2 py-1 text-xs rounded ${
+                                      u.is_online
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-gray-400 text-white'
+                                    }`}
+                                  >
+                                    {u.is_online ? 'En ligne' : 'Hors ligne'}
+                                  </span>
+
+                                  <button
+                                    onClick={() => toggleUserStatus(u.id)}
+                                    className={`px-3 py-1 text-white rounded ${
+                                      u.is_active
+                                        ? 'bg-red-500'
+                                        : 'bg-green-500'
+                                    }`}
+                                  >
+                                    {u.is_active ? 'Bloquer' : 'Débloquer'}
+                                  </button>
+
+                                  <button
+                                    onClick={() => deleteUser(u.id)}
+                                    className="bg-black text-white px-3 py-1 rounded"
+                                  >
+                                    Supprimer
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p>Aucun utilisateur</p>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              ))}
             </TableBody>
           </Table>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-center mt-4 space-x-2">
-              {Array.from({ length: totalPages }, (_, i) => (
-                <button
-                  key={i}
-                  onClick={() => paginate(i + 1)}
-                  className={`px-3 py-1 rounded ${
-                    currentPage === i + 1
-                      ? 'bg-[#007BFF] text-white'
-                      : 'bg-gray-200 hover:bg-gray-300 dark:bg-zinc-700 dark:hover:bg-zinc-600'
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-            </div>
-          )}
-        </motion.div>
+          <div className="flex justify-center mt-4 gap-2">
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentPage(i + 1)}
+                className={`px-3 py-1 rounded ${
+                  currentPage === i + 1
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+        </div>
       </main>
 
       <ToastContainer position="top-right" autoClose={3000} />

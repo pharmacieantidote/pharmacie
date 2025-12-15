@@ -130,6 +130,45 @@ class ProduitsDuFabricantView(APIView):
         produits = ProduitFabricant.objects.filter(fabricant_id=pk)
         serializer = ProduitsFabricantSerializer(produits, many=True)
         return Response(serializer.data)
+################################# Impression Thermique de la liste de commande des produit chez le fournisseur#################
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import CommandeProduit
+from .utils import imprimer_commande_thermique
+
+class ImprimerCommandeAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        commande_id = request.data.get("commande_id")
+
+        if not commande_id:
+            return Response(
+                {"error": "commande_id requis"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            commande = CommandeProduit.objects.get(
+                id=commande_id,
+                pharmacie=request.user.pharmacie
+            )
+
+            imprimer_commande_thermique(commande)
+            return Response({"status": "imprimé"}, status=status.HTTP_200_OK)
+
+        except CommandeProduit.DoesNotExist:
+            return Response(
+                {"error": "Commande introuvable"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 ###################"Recption de Medicamennt du commande"####################""
 from rest_framework.views import APIView

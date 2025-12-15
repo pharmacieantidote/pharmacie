@@ -4,7 +4,7 @@ from .views import LoginAPIView
 from django.urls import path, include
 from uuid import UUID
 from rest_framework.routers import DefaultRouter
-from .views import PharmacieViewSet,liste_admins,reactiver_utilisateur,UpdateProfileView, desactiver_utilisateur,RegisterAdminView,DashboardComptableAPIView, UserViewSet,ComptableUserViewSet, CreateDirectorView, PharmacieDetailView #CreateAccountantView
+from .views import PharmacieViewSet,liste_admins,PharmacieUsersAdminAPIView,reactiver_utilisateur,UpdateProfileView, desactiver_utilisateur,RegisterAdminView,DashboardComptableAPIView, UserViewSet,ComptableUserViewSet, CreateDirectorView, PharmacieDetailView #CreateAccountantView
 
 router = DefaultRouter()
 router.register(r'pharmacies', PharmacieViewSet)
@@ -22,6 +22,7 @@ urlpatterns = [
     path('api/admins/<uuid:user_id>/desactiver/', desactiver_utilisateur, name='desactiver_admin'),
     path('api/admins/<uuid:user_id>/reactiver/', reactiver_utilisateur, name='reactiver-utilisateur'),
     path('api/update-profile/', UpdateProfileView.as_view(), name='update-profile'),
+    path('api/admin/pharmacies/<uuid:pharmacie_id>/users/',PharmacieUsersAdminAPIView.as_view()),
     #path('api/create-accountant/', CreateAccountantView.as_view(), name='create-accountant'),
     
 ]

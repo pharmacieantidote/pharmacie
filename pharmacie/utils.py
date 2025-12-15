@@ -671,6 +671,67 @@ def imprimer_ticket_proformat(client, pharmacie, lignes):
         print(f"❌ Erreur impression proformat: {e}")
         traceback.print_exc()
 
+######################## Impression Commande de Produit#############################
+from escpos.printer import Usb
+from datetime import datetime
+import traceback
+
+def imprimer_commande_thermique(commande):
+    """
+    Impression thermique du BON DE COMMANDE (réception fournisseur)
+    Corps : Produit | Qté cmd | Qté reçue (cases)
+    """
+    try:
+        printer = Usb(0x1fc9, 0x2016)
+
+        pharmacie = commande.pharmacie
+        fabricant = commande.fabricant
+        date_cmd = commande.date_commande.strftime("%d/%m/%Y %H:%M")
+
+        # ==============================
+        # 🏥 EN-TÊTE
+        # ==============================
+        printer.set(align='center', bold=True)
+        printer.text("BON DE COMMANDE\n")
+        printer.set(bold=False)
+        printer.text("-" * 32 + "\n")
+
+        printer.set(align='left')
+        printer.text(f"Pharmacie : {pharmacie.nom_pharm}\n")
+        printer.text(f"Date      : {date_cmd}\n")
+        printer.text(f"Fabricant : {fabricant.nom}\n")
+        printer.text("-" * 32 + "\n")
+
+        # ==============================
+        # 📦 CORPS (RÉCEPTION)
+        # ==============================
+        printer.set(bold=True)
+        printer.text(f"{'Produit':<16}{'Cmd':>5}{'Rec'}\n")
+        printer.set(bold=False)
+        printer.text("-" * 32 + "\n")
+
+        for ligne in commande.lignes.all():
+            nom = ligne.produit_fabricant.nom[:16]
+            qte_cmd = ligne.quantite_commandee
+
+            # ⬜⬜⬜ = zone manuelle réception
+            printer.text(f"{nom:<16}{qte_cmd:>5}   [   ]\n")
+
+        printer.text("-" * 32 + "\n")
+
+        # ==============================
+        # ✍️ SIGNATURE / RÉCEPTION
+        # ==============================
+        printer.text("\nReçu par : _______________\n")
+        printer.text("Date     : ____ / ____ / ____\n")
+
+        printer.text("\n\n")
+        printer.cut()
+        printer.close()
+
+    except Exception as e:
+        traceback.print_exc()
+        raise e
 
 
 #########################-----Rapport Mensuel et Calcul Marge de Progretion ou regrestion----###############

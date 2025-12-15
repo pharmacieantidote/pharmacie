@@ -256,7 +256,7 @@ class DashboardComptableAPIView(APIView):
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import RegisterAdminSerializer
+from .serializers import RegisterAdminSerializer,  AdminUserDetailSerializer
 
 class RegisterAdminView(APIView):
     def post(self, request, *args, **kwargs):
@@ -273,3 +273,43 @@ class RegisterAdminView(APIView):
                 }
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+# views.py
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+
+class PharmacieUsersAdminAPIView(generics.ListAPIView):
+    serializer_class = AdminUserDetailSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        pharmacie_id = self.kwargs['pharmacie_id']
+        return User.objects.filter(pharmacie_id=pharmacie_id)
+    
+# views.py
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+
+class ToggleUserActiveAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request, user_id):
+        user = get_object_or_404(User, id=user_id)
+        user.is_active = not user.is_active
+        user.save()
+        return Response({
+            "message": "Statut utilisateur mis à jour",
+            "is_active": user.is_active
+        })
+
+
+class DeleteUserAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def delete(self, request, user_id):
+        user = get_object_or_404(User, id=user_id)
+        user.delete()
+        return Response({"message": "Utilisateur supprimé"})
+

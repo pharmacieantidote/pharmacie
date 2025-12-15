@@ -50,7 +50,8 @@ DepenseViewSet,
 analyse_stock_api,
 liste_rapports,
 generer_rapport,
-imprimer_proformat
+imprimer_proformat,
+ImprimerCommandeAPIView,
 
 
 
@@ -121,5 +122,7 @@ urlpatterns = [
     path("api/rapports/", liste_rapports, name="liste_rapports"),
     path("api/rapports/generer/", generer_rapport, name="generer_rapport"),
     path('api/imprimer-proformat/', imprimer_proformat, name='imprimer_proformat'),
+    path("api/imprimer-commande/",ImprimerCommandeAPIView.as_view()),
+
     
 ]

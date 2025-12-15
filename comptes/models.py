@@ -87,3 +87,15 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
 
     def __str__(self):
         return self.username
+
+
+
+class UserSession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
+    login_at = models.DateTimeField(auto_now_add=True)
+    logout_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def duration_seconds(self):
+        end = self.logout_at or timezone.now()
+        return int((end - self.login_at).total_seconds())

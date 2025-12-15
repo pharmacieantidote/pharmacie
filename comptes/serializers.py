@@ -205,4 +205,37 @@ class ComptableDashboardSerializer(serializers.Serializer):
     total_recettes = serializers.DecimalField(max_digits=12, decimal_places=2)
     solde = serializers.DecimalField(max_digits=12, decimal_places=2)
 
+# serializers.py
+class AdminUserDetailSerializer(serializers.ModelSerializer):
+    is_online = serializers.SerializerMethodField()
+    total_connections = serializers.SerializerMethodField()
+    total_time_seconds = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'role',
+            'is_active',
+            'is_online',
+            'total_connections',
+            'total_time_seconds',
+            'date_joined',
+        ]
+
+    def get_is_online(self, obj):
+        return obj.sessions.filter(is_active=True).exists()
+
+    def get_total_connections(self, obj):
+        return obj.sessions.count()
+
+    def get_total_time_seconds(self, obj):
+        return sum(
+            session.duration_seconds()
+            for session in obj.sessions.all()
+        )
 
