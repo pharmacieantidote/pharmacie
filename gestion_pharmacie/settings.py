@@ -9,15 +9,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-#logging.basicConfig(level=logging.DEBUG) 
+logging.basicConfig(level=logging.DEBUG) 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#z+!08_7q)g9zgor&1vk+@l8x)$5fp&4-!a#r^+p@)k3khf#-m'
-#SECRET_KEY = os.environ.get("SECRET_KEY")
+#SECRET_KEY = 'django-insecure-#z+!08_7q)g9zgor&1vk+@l8x)$5fp&4-!a#r^+p@)k3khf#-m'
+SECRET_KEY = os.environ.get("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+#DEBUG = True
 
-#ALLOWED_HOSTS = ["pharmacie-cfpt.onrender.com"]
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["pharmacie-cfpt.onrender.com"]
+#ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
 
 #Application definition
@@ -117,13 +117,13 @@ from decouple import config
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('POSTGRES_DB'),
-        'USER': config('POSTGRES_USER'),
-        'PASSWORD': config('POSTGRES_PASSWORD'),
-        'HOST': config('POSTGRES_HOST', default='localhost'),
-        'PORT': config('POSTGRES_PORT', default='5432'),
-    },
+           'ENGINE': 'django.db.backends.postgresql',
+           'NAME': 'pharmanica123',
+           'USER': 'pharmanica123_user',
+           'PASSWORD': 'nhLRnFprtdhHxFxS0d9Ih6sLCV58cMqN',
+           'HOST': 'dpg-d4lt7pu3jp1c739ip9k0-a',
+           'PORT': '5432',
+},
       'remote': 
    {
     'ENGINE': 'django.db.backends.postgresql',
