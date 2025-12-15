@@ -157,60 +157,92 @@ export default function FormulaireCommande() {
   }, 0);
 
   const handleConfirmerCommande = async () => {
-    if (!selectedFabricant) {
-      alert("Veuillez sélectionner un fabricant.");
-      return;
-    }
+  // 1️⃣ Vérifications de base
+  if (!selectedFabricant) {
+    alert("Veuillez sélectionner un fabricant.");
+    return;
+  }
 
-    if (panier.length === 0) {
-      alert("Le panier est vide.");
-      return;
-    }
+  if (panier.length === 0) {
+    alert("Le panier est vide.");
+    return;
+  }
 
-    const lignesInvalides = panier.filter((ligne) => !ligne.id || ligne.quantite <= 0);
-    if (lignesInvalides.length > 0) {
-      alert("Lignes invalides dans la commande.");
-      return;
-    }
+  const lignesInvalides = panier.filter(
+    (ligne) => !ligne.id || ligne.quantite <= 0
+  );
 
-    const confirmation = window.confirm("Confirmer cette commande ?");
-    if (!confirmation) return;
+  if (lignesInvalides.length > 0) {
+    alert("Lignes invalides dans la commande.");
+    return;
+  }
 
-    const payload = {
-      fabricant: selectedFabricant.id,
-      lignes: panier.map((l) => ({
-        produit_fabricant: l.id,
-        quantite_commandee: l.quantite,
-        prix_achat: l.prix_achat,
-      })),
-    };
+  // 2️⃣ Confirmation utilisateur
+  const confirmation = window.confirm("Confirmer cette commande ?");
+  if (!confirmation) return;
 
-    try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/commandes-produits/`, payload, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      setCommandeConfirmee({
-        fabricant: selectedFabricant,
-        lignes: [...panier],
-      });
-
-      setShowPDF(true);
-      setPanier([]);
-    } catch (error: any) {
-      const response = error?.response;
-      if (response?.status === 400 && response.data?.lignes) {
-        const messages = response.data.lignes.map((item: any) =>
-          `🧪 Produit : ${item.produit}\n❗ ${item.message}`
-        ).join('\n\n');
-        alert("⚠ Erreurs dans la commande :\n\n" + messages);
-      } else if (response?.data?.detail) {
-        alert("Erreur : " + response.data.detail);
-      } else {
-        alert("Une erreur inconnue est survenue.");
-      }
-    }
+  // 3️⃣ Payload envoyé à l’API
+  const payload = {
+    fabricant: selectedFabricant.id,
+    lignes: panier.map((l) => ({
+      produit_fabricant: l.id,
+      quantite_commandee: l.quantite,
+      prix_achat: l.prix_achat, // backend l'accepte mais n'imprime pas
+    })),
   };
+
+  try {
+    // 4️⃣ CRÉATION DE LA COMMANDE
+    const res = await axios.post(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/commandes-produits/`,
+      payload,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    const commandeId = res.data.id;
+
+    // 5️⃣ IMPRESSION THERMIQUE AUTOMATIQUE
+    await axios.post(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/imprimer-commande/`,
+      { commande_id: commandeId },
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    // 6️⃣ APERÇU PDF (inchangé)
+    setCommandeConfirmee({
+      fabricant: selectedFabricant,
+      lignes: [...panier],
+    });
+
+    setShowPDF(true);
+    setPanier([]);
+
+  } catch (error: any) {
+    const response = error?.response;
+
+    if (response?.status === 400 && response.data?.lignes) {
+      const messages = response.data.lignes
+        .map(
+          (item: any) =>
+            `🧪 Produit : ${item.produit}\n❗ ${item.message}`
+        )
+        .join("\n\n");
+
+      alert("⚠ Erreurs dans la commande :\n\n" + messages);
+
+    } else if (response?.data?.detail) {
+      alert("Erreur : " + response.data.detail);
+
+    } else {
+      alert("Une erreur inconnue est survenue.");
+    }
+  }
+};
+
 
   const ajouterDepuisRequisition = async (req: any) => {
     if (!selectedFabricant || req.fabricant_nom !== selectedFabricant.nom) {
