@@ -4,7 +4,7 @@ import json
 from uuid import UUID
 from datetime import datetime, timezone as dt_timezone
 
-from django.db import models, transaction
+from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 
 # ============================
@@ -94,7 +94,7 @@ SYNC_FILE = os.path.join(CURRENT_DIR, "last_sync.json")
 CONFIG_FILE = os.path.join(CURRENT_DIR, "pharmacie_config.json")
 
 # ============================
-# SYNC TIME MANAGEMENT
+# SYNC TIME
 # ============================
 def load_sync_times():
     if not os.path.exists(SYNC_FILE):
@@ -115,8 +115,13 @@ def get_last_sync(model, direction):
         return dt if timezone.is_aware(dt) else timezone.make_aware(dt)
     return datetime.min.replace(tzinfo=dt_timezone.utc)
 
-def update_last_sync(model, direction):
-    SYNC_TIMES[f"{model.__name__}_{direction}"] = timezone.now().isoformat()
+# ============================
+# CHAMP DE SYNC
+# ============================
+def get_sync_field(model):
+    if model.__name__ in ["VenteProduit", "VenteLigne"]:
+        return "date_vente"
+    return "updated_at"
 
 # ============================
 # UTILS
@@ -124,9 +129,8 @@ def update_last_sync(model, direction):
 USER_CACHE = set()
 
 def ensure_user_local(user_id, source_db):
-    if user_id in USER_CACHE:
+    if not user_id or user_id in USER_CACHE:
         return
-
     if not User.objects.filter(id=user_id).exists():
         ru = User.objects.using(source_db).get(id=user_id)
         User.objects.create(
@@ -141,6 +145,26 @@ def ensure_user_local(user_id, source_db):
             date_joined=ru.date_joined,
         )
     USER_CACHE.add(user_id)
+
+def ensure_object_exists(model, obj_id, source_db, target_db):
+    """
+    Synchronise un objet FK manquant sans logique de date
+    """
+    if not obj_id:
+        return
+    if model.objects.using(target_db).filter(id=obj_id).exists():
+        return
+
+    source_obj = model.objects.using(source_db).get(id=obj_id)
+    data = {
+        f.name: getattr(source_obj, f.name)
+        for f in model._meta.fields
+        if f.name != "id"
+    }
+    model.objects.using(target_db).update_or_create(
+        id=source_obj.id,
+        defaults=data
+    )
 
 def get_current_pharmacie():
     with open(CONFIG_FILE, "r") as f:
@@ -164,16 +188,14 @@ def chunked_queryset(qs):
         if last_pk:
             page = page.filter(pk__gt=last_pk)
         page = page.order_by("pk")[:BATCH_SIZE]
-
         batch = list(page)
         if not batch:
             break
-
         yield batch
         last_pk = batch[-1].pk
 
 # ============================
-# CORE SYNC (SAFE MULTI-DB)
+# CORE SYNC
 # ============================
 def sync_model(source_db, target_db, model, pharmacie=None):
     direction = f"{source_db}→{target_db}"
@@ -185,10 +207,12 @@ def sync_model(source_db, target_db, model, pharmacie=None):
     if pharmacie and lookup:
         qs = qs.filter(**{lookup: pharmacie})
 
-    if hasattr(model, "updated_at"):
-        qs = qs.filter(updated_at__gt=get_last_sync(model, direction))
+    sync_field = get_sync_field(model)
+    if hasattr(model, sync_field):
+        qs = qs.filter(**{f"{sync_field}__gt": get_last_sync(model, direction)})
 
     total_synced = 0
+    last_synced_value = None
 
     for batch in chunked_queryset(qs):
         ids = [obj.pk for obj in batch]
@@ -198,8 +222,7 @@ def sync_model(source_db, target_db, model, pharmacie=None):
             for obj in model.objects.using(target_db).filter(pk__in=ids)
         }
 
-        to_create = []
-        to_update = []
+        to_create, to_update = [], []
 
         for obj in batch:
             data = {}
@@ -209,26 +232,42 @@ def sync_model(source_db, target_db, model, pharmacie=None):
                     continue
 
                 if isinstance(field, models.ForeignKey):
-                    # IMPORTANT: FK via ID uniquement
-                    data[field.attname] = getattr(obj, field.attname)
+                    fk_id = getattr(obj, field.attname)
+                    data[field.attname] = fk_id
 
-                    # Gestion FK User
                     if field.remote_field.model == User:
-                        user_id = getattr(obj, field.attname)
-                        if user_id:
-                            ensure_user_local(user_id, source_db)
+                        ensure_user_local(fk_id, source_db)
+
+                    # 🔑 SECURISATION FK CRITIQUE
+                    if field.remote_field.model in (
+                        ProduitFabricant,
+                        ProduitPharmacie,
+                        Pharmacie,
+                        Client,
+                        VenteProduit,
+                        CommandeProduit,
+                        ReceptionProduit,
+                    ):
+                        ensure_object_exists(
+                            field.remote_field.model,
+                            fk_id,
+                            source_db,
+                            target_db,
+                        )
                 else:
                     data[field.name] = getattr(obj, field.name)
 
+            current_value = getattr(obj, sync_field, None)
+            if current_value:
+                if not last_synced_value or current_value > last_synced_value:
+                    last_synced_value = current_value
+
             if obj.pk in existing:
                 target = existing[obj.pk]
-
-                if hasattr(model, "updated_at") and target.updated_at >= obj.updated_at:
+                if hasattr(model, sync_field) and getattr(target, sync_field) >= getattr(obj, sync_field):
                     continue
-
                 for k, v in data.items():
                     setattr(target, k, v)
-
                 to_update.append(target)
             else:
                 to_create.append(model(id=obj.pk, **data))
@@ -248,7 +287,8 @@ def sync_model(source_db, target_db, model, pharmacie=None):
         total_synced += len(to_create) + len(to_update)
         print(f"   ✔ {total_synced} synchronisés")
 
-    update_last_sync(model, direction)
+    if last_synced_value:
+        SYNC_TIMES[f"{model.__name__}_{direction}"] = last_synced_value.isoformat()
 
 # ============================
 # MAIN

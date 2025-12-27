@@ -117,13 +117,13 @@ from decouple import config
 
 DATABASES = {
     'default': {
-           'ENGINE': 'django.db.backends.postgresql',
-           'NAME': 'pharmanica123',
-           'USER': 'pharmanica123_user',
-           'PASSWORD': 'nhLRnFprtdhHxFxS0d9Ih6sLCV58cMqN',
-           'HOST': 'dpg-d4lt7pu3jp1c739ip9k0-a',
-           'PORT': '5432',
-},
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'pharmanica123',
+        'USER': 'pharmanica123_user',
+        'PASSWORD': 'nhLRnFprtdhHxFxS0d9Ih6sLCV58cMqN',
+        'HOST': 'dpg-d4lt7pu3jp1c739ip9k0-a',
+        'PORT': '5432',
+    },
       'remote': 
    {
     'ENGINE': 'django.db.backends.postgresql',

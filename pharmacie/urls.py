@@ -52,6 +52,8 @@ liste_rapports,
 generer_rapport,
 imprimer_proformat,
 ImprimerCommandeAPIView,
+ApprovisionnementRapideView
+
 
 
 
@@ -123,6 +125,6 @@ urlpatterns = [
     path("api/rapports/generer/", generer_rapport, name="generer_rapport"),
     path('api/imprimer-proformat/', imprimer_proformat, name='imprimer_proformat'),
     path("api/imprimer-commande/",ImprimerCommandeAPIView.as_view()),
-
-    
+    path('api/stock/ajout-direct/', ApprovisionnementRapideView.as_view()),
+     
 ]

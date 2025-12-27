@@ -178,6 +178,7 @@ const HeaderPharmacie = ({ pharmacie, user }: HeaderPharmacieProps) => {
       submenu: [
         { href: '/dashboard/pharmacie/commade-chez-fournisseur', label: 'Nouvelle commande', icon: '🛒' },
         { href: '/dashboard/pharmacie/commade-chez-fournisseur/reception', label: 'Confirmer réception', icon: '📩' },
+        { href: '/dashboard/directeur/aprovisionnement-rapide', label: 'Approvisionnement Rapide', icon: '🛒' },
         { href: '/dashboard/directeur/historique-commande-reception', label: 'Historique commandes', icon: '📜' },
       ],
       isTitle: true,

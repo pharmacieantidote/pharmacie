@@ -927,3 +927,74 @@ class RapportMensuelSerializer(serializers.ModelSerializer):
             "croissance_benefice",
             "cree_le",
         ]
+
+
+################### Approvisionnement rapide ######################
+from rest_framework import serializers
+from decimal import Decimal
+from datetime import date, timedelta
+from rest_framework import serializers
+from datetime import date, timedelta
+from decimal import Decimal
+from pharmacie.models import ProduitPharmacie, LotProduitPharmacie, ProduitFabricant
+
+# Petite fonction interne pour générer un code-barres aléatoire si utils.py n'existe pas
+import random
+import string
+def generer_code_barre_aleatoire(length=12):
+    return ''.join(random.choices(string.digits, k=length))
+
+class ApprovisionnementRapideSerializer(serializers.Serializer):
+    produit_fabricant_id = serializers.UUIDField()
+    quantite = serializers.IntegerField(min_value=1)
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+
+        if not hasattr(user, "pharmacie") or user.pharmacie is None:
+            raise serializers.ValidationError("Utilisateur non lié à une pharmacie.")
+
+        pharmacie = user.pharmacie
+        produit_fabricant = ProduitFabricant.objects.get(id=validated_data['produit_fabricant_id'])
+        quantite = validated_data['quantite']
+
+        nb_plaquettes = quantite * produit_fabricant.nombre_plaquettes_par_boite
+
+        produit_pharmacie, created = ProduitPharmacie.objects.get_or_create(
+            pharmacie=pharmacie,
+            produit_fabricant=produit_fabricant,
+            defaults={
+                "quantite": 0,
+                "code_barre": generer_code_barre_aleatoire(),
+                "nom_medicament": produit_fabricant.nom,
+                "indication": True,
+                "localisation": "A0",
+                "conditionnement": "boîte",
+                "date_peremption": date.today() + timedelta(days=545),
+                "categorie": "True",
+                "alerte_quantite": 3,
+                "prix_achat": Decimal(produit_fabricant.prix_achat),
+                "marge_beneficiaire": Decimal("20.00"),
+            }
+        )
+
+        # Ajout de la quantité
+        produit_pharmacie.quantite += nb_plaquettes
+
+        # Définir prix de vente si création
+        if created:
+            produit_pharmacie.prix_vente = (
+                produit_pharmacie.prix_achat +
+                (produit_pharmacie.prix_achat * produit_pharmacie.marge_beneficiaire / 100)
+            ).quantize(Decimal("0.01"))
+
+        produit_pharmacie.save()
+
+        # Création d'un lot associé
+        LotProduitPharmacie.objects.create(
+            produit=produit_pharmacie,
+            quantite=nb_plaquettes,
+            date_peremption=date.today() + timedelta(days=365)
+        )
+
+        return produit_pharmacie

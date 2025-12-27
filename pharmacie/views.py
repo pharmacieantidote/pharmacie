@@ -1666,3 +1666,24 @@ def generer_rapport(request):
         },
         status=status.HTTP_201_CREATED,
     )
+
+###########  Approvisionnement rapide ###########################
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import ApprovisionnementRapideSerializer
+
+class ApprovisionnementRapideView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ApprovisionnementRapideSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        produit = serializer.save()
+
+        return Response({
+            "message": "Produit ajouté au stock avec succès",
+            "produit_id": produit.id,
+            "quantite_stock": produit.quantite
+        }, status=status.HTTP_201_CREATED)
